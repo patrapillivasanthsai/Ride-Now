@@ -1,8 +1,20 @@
-# RideNow – Full-Stack Ride Booking Application
+# RideNow - Production-Style Ride-Booking Platform
 
-RideNow is a full-stack ride-hailing application that connects customers and drivers through a modern digital platform. Customers can book rides and track their ride status, while drivers can manage their availability and accept or complete ride requests.
+RideNow is a complete production-style ride-booking platform consisting of four main applications:
 
-The project includes separate applications for customers, drivers, and administrators, all connected to a centralized backend API. It features secure JWT authentication, role-based access control, ride lifecycle management, fare estimation, configurable pricing in Indian Rupees (INR), and an admin dashboard for managing users, rides, and platform operations.
+1. **`backend/`**: Node.js, TypeScript, and Express.js API using PostgreSQL with Prisma ORM.
+2. **`customer-web/`**: React web application for customers to book rides, request vehicles, and track their driver.
+3. **`driver-mobile/`**: React Native mobile application for drivers to toggle online status, accept rides, and handle driving transitions.
+4. **`admin-web/`**: React dashboard for system administrators to manage pricing, approve drivers, and monitor rides.
 
-**Technology Stack:** React, React Native, Node.js, TypeScript, PostgreSQL, Prisma, Docker, and JWT Authentication.
+## Workspace Layout
+```
+ridenow/
+├── backend/            # Backend REST API + Socket.IO server
+├── customer-web/       # Customer Web App (Vite + React)
+├── driver-mobile/      # Driver Mobile App (React Native CLI)
+├── admin-web/          # Admin Web App (Vite + React)
+└── README.md           # This workspace documentation
+```
 
+Detailed setup, environment configs, database migrations, and scripts can be found in each respective application directory.
