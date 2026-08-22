@@ -6,25 +6,199 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  DRIVER
+  ADMIN
+}
+
+enum DriverStatus {
+  OFFLINE
+  ONLINE
+  BUSY
+}
+
+enum VehicleType {
+  SEDAN
+  SUV
+  HATCHBACK
+  BIKE
+}
+
+enum RideStatus {
+  REQUESTED
+  SEARCHING_DRIVER
+  DRIVER_ASSIGNED
+  DRIVER_ARRIVING
+  DRIVER_ARRIVED
+  RIDE_STARTED
+  RIDE_COMPLETED
+  CANCELLED
+  NO_DRIVER_AVAILABLE
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
 }
 
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
-  name      String?
-  role      String   @default("CUSTOMER") // CUSTOMER, DRIVER, ADMIN
+  password  String
+  role      UserRole
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer  Customer?
+  driver    Driver?
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rides         Ride[]
+  ratings       Rating[]
+  notifications Notification[]
+}
+
+model Driver {
+  id         String       @id @default(uuid())
+  userId     String       @unique
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone      String?
+  isApproved Boolean      @default(false)
+  status     DriverStatus @default(OFFLINE)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  vehicle        Vehicle?
+  rides          Ride[]
+  driverLocation DriverLocation?
+  ratings        Rating[]
+}
+
+model Vehicle {
+  id          String      @id @default(uuid())
+  driverId    String      @unique
+  driver      Driver      @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  make        String
+  model       String
+  year        Int
+  color       String
+  plateNumber String      @unique
+  type        VehicleType @default(SEDAN)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 }
 
 model Ride {
-  id              String   @id @default(uuid())
+  id              String     @id @default(uuid())
   customerId      String
+  customer        Customer   @relation(fields: [customerId], references: [id])
   driverId        String?
-  status          String   @default("PENDING") // PENDING, ACCEPTED, ONGOING, COMPLETED, CANCELLED
-  pickupLocation  String
-  dropoffLocation String
+  driver          Driver?    @relation(fields: [driverId], references: [id])
+  status          RideStatus @default(REQUESTED)
+  pickupAddress   String
+  pickupLat       Float
+  pickupLng       Float
+  dropoffAddress  String
+  dropoffLat      Float
+  dropoffLng      Float
   fare            Float
-  createdAt       DateTime @default(now())
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  statusHistory RideStatusHistory[]
+  payments      Payment[]
+  ratings       Rating[]
+
+  @@index([customerId])
+  @@index([driverId])
+  @@index([status])
+}
+
+model RideStatusHistory {
+  id        String     @id @default(uuid())
+  rideId    String
+  ride      Ride       @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  status    RideStatus
+  createdAt DateTime   @default(now())
+
+  @@index([rideId])
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  rideId        String
+  ride          Ride          @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  amount        Float
+  status        PaymentStatus @default(PENDING)
+  provider      String        @default("MOCK")
+  transactionId String?       @unique
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([rideId])
+}
+
+model Rating {
+  id         String   @id @default(uuid())
+  rideId     String
+  ride       Ride     @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  score      Int
+  comment    String?
+  raterRole  UserRole
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  driverId   String
+  driver     Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@index([rideId])
+  @@index([customerId])
+  @@index([driverId])
+}
+
+model Notification {
+  id         String    @id @default(uuid())
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  title      String
+  body       String
+  isRead     Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+
+  @@index([customerId])
+}
+
+model Pricing {
+  id            String      @id @default(uuid())
+  vehicleType   VehicleType @unique
+  baseFare      Float
+  perKmRate     Float
+  perMinuteRate Float
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model DriverLocation {
+  id        String   @id @default(uuid())
+  driverId  String   @unique
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  lat       Float
+  lng       Float
+  updatedAt DateTime @updatedAt
+
+  @@index([driverId])
 }

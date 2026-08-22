@@ -1,5 +1,6 @@
 import express, { Application, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 
 const app: Application = express();
 const prisma = new PrismaClient();
@@ -17,18 +18,25 @@ app.get('/health', (req: Request, res: Response) => {
 
 // Endpoint to create a new user (for testing Prisma)
 app.post('/users', async (req: Request, res: Response) => {
-  const { email, name, role } = req.body;
+  const { email, password, role } = req.body;
   try {
+    const salt = bcrypt.genSaltSync(10);
+    const hashedPassword = bcrypt.hashSync(password || 'defaultPass123', salt);
     const newUser = await prisma.user.create({
       data: {
         email,
-        name,
-        role,
+        password: hashedPassword,
+        role: role || 'CUSTOMER',
       },
     });
     res.status(201).json({
       success: true,
-      data: newUser,
+      data: {
+        id: newUser.id,
+        email: newUser.email,
+        role: newUser.role,
+        createdAt: newUser.createdAt,
+      },
     });
   } catch (error: any) {
     res.status(400).json({
