@@ -1,8 +1,7 @@
 {
-  "extends": "@react-native/typescript-config/tsconfig.json",
   "compilerOptions": {
     "target": "es2022",
-    "module": "commonjs",
+    "module": "es2022",
     "lib": ["es2022"],
     "allowJs": true,
     "jsx": "react-native",
@@ -11,6 +10,12 @@
     "moduleResolution": "node",
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true
-  }
+    "resolveJsonModule": true,
+    "types": []
+  },
+  "exclude": [
+    "node_modules",
+    "babel.config.js",
+    "metro.config.js"
+  ]
 }

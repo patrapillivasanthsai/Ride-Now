@@ -1,55 +1,79 @@
-import React, { useState } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { Layout } from './components/Layout';
+import { Login } from './pages/Login';
+import { Register } from './pages/Register';
+import { Dashboard } from './pages/Dashboard';
+import { Profile } from './pages/Profile';
+import { Rides } from './pages/Rides';
+import { RideDetail } from './pages/RideDetail';
+import { PaymentMethods } from './pages/PaymentMethods';
+import { Notifications } from './pages/Notifications';
 
 function App() {
-  const [pickup, setPickup] = useState('');
-  const [dropoff, setDropoff] = useState('');
-  const [statusMessage, setStatusMessage] = useState('');
-
-  const handleBookRide = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!pickup || !dropoff) {
-      setStatusMessage('Please enter both pickup and dropoff locations.');
-      return;
-    }
-    setStatusMessage(`Booking ride from "${pickup}" to "${dropoff}"...`);
-    // Future: API call to POST /rides
-  };
-
   return (
-    <div style={{ fontFamily: 'sans-serif', maxWidth: '500px', margin: '50px auto', padding: '20px', border: '1px solid #ccc', borderRadius: '8px' }}>
-      <h1 style={{ color: '#ffc107', textAlign: 'center' }}>RideNow</h1>
-      <h3 style={{ textAlign: 'center' }}>Customer Booking App</h3>
-      <form onSubmit={handleBookRide} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        <div>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Pickup Location</label>
-          <input
-            type="text"
-            value={pickup}
-            onChange={(e) => setPickup(e.target.value)}
-            placeholder="e.g. 123 Main St"
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
-          />
-        </div>
-        <div>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Dropoff Location</label>
-          <input
-            type="text"
-            value={dropoff}
-            onChange={(e) => setDropoff(e.target.value)}
-            placeholder="e.g. Airport Terminal 1"
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
-          />
-        </div>
-        <button type="submit" style={{ padding: '10px', backgroundColor: '#000', color: '#ffc107', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-          Request Ride
-        </button>
-      </form>
-      {statusMessage && (
-        <div style={{ marginTop: '20px', padding: '10px', backgroundColor: '#f0f0f0', borderRadius: '4px', borderLeft: '5px solid #ffc107' }}>
-          {statusMessage}
-        </div>
-      )}
-    </div>
+    <AuthProvider>
+      <BrowserRouter>
+        <Layout>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+
+            {/* Protected routes */}
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/rides"
+              element={
+                <ProtectedRoute>
+                  <Rides />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/rides/:id"
+              element={
+                <ProtectedRoute>
+                  <RideDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/payment-methods"
+              element={
+                <ProtectedRoute>
+                  <PaymentMethods />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/notifications"
+              element={
+                <ProtectedRoute>
+                  <Notifications />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </Layout>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 

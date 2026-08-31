@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: ridenow-db-prod
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-ridenow_prod}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    # Drops secure localhost port binding from production container to prevent DB exposure
+    restart: always
+    networks:
+      - ridenow-network-prod
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ridenow-backend-prod
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-ridenow_prod}?schema=public"
+      PORT: 3000
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://yourdomain.com}
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+    networks:
+      - ridenow-network-prod
+
+  customer-web:
+    build:
+      context: ./customer-web
+      dockerfile: Dockerfile
+      args:
+        # Client VITE configurations are built into assets at compile time
+        VITE_API_URL: ${VITE_API_URL:-https://api.yourdomain.com}
+    container_name: ridenow-customer-web-prod
+    ports:
+      - "5173:80"
+    restart: always
+    networks:
+      - ridenow-network-prod
+
+  admin-web:
+    build:
+      context: ./admin-web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://api.yourdomain.com}
+    container_name: ridenow-admin-web-prod
+    ports:
+      - "5174:80"
+    restart: always
+    networks:
+      - ridenow-network-prod
+
+volumes:
+  postgres_prod_data:
+
+networks:
+  ridenow-network-prod:
+    driver: bridge

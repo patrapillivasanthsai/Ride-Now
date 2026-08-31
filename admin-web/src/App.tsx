@@ -1,74 +1,51 @@
 import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { AdminLayout } from './components/AdminLayout';
+import { Login } from './pages/Login';
+import { Dashboard } from './pages/Dashboard';
+import { Drivers } from './pages/Drivers';
+import { Rides } from './pages/Rides';
+import { Pricing } from './pages/Pricing';
+import { Customers } from './pages/Customers';
+import { Payments } from './pages/Payments';
+import { Analytics } from './pages/Analytics';
+import { Ratings } from './pages/Ratings';
+import { Notifications } from './pages/Notifications';
+import { Offers } from './pages/Offers';
+import { Staff } from './pages/Staff';
+import { Settings } from './pages/Settings';
 
-function App() {
-  const stats = [
-    { title: 'Total Rides', count: 1240, color: '#ffc107' },
-    { title: 'Registered Customers', count: 852, color: '#007bff' },
-    { title: 'Active Drivers', count: 84, color: '#28a745' },
-  ];
+const WrappedRoute: React.FC<{ element: React.ReactNode }> = ({ element }) => (
+  <ProtectedRoute>
+    <AdminLayout>{element}</AdminLayout>
+  </ProtectedRoute>
+);
 
-  const recentRides = [
-    { id: 'RIDE-001', customer: 'John Doe', driver: 'Alice Smith', pickup: 'Central Mall', dropoff: 'City Park', status: 'ONGOING' },
-    { id: 'RIDE-002', customer: 'Jane Smith', driver: 'Bob Johnson', pickup: 'Airport Terminal 2', dropoff: 'Grand Plaza', status: 'COMPLETED' },
-    { id: 'RIDE-003', customer: 'Michael Brown', driver: 'Pending', pickup: 'Downtown Office', dropoff: 'Metro Station', status: 'PENDING' },
-  ];
-
+export const App: React.FC = () => {
   return (
-    <div style={{ fontFamily: 'sans-serif', padding: '30px', backgroundColor: '#f4f6f9', minHeight: '100vh' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <h1 style={{ margin: 0, color: '#333' }}>RideNow Admin Portal</h1>
-        <div style={{ padding: '8px 15px', backgroundColor: '#333', color: '#ffc107', borderRadius: '4px', fontWeight: 'bold' }}>Admin Session</div>
-      </div>
-
-      {/* Stats Section */}
-      <div style={{ display: 'flex', gap: '20px', marginBottom: '40px' }}>
-        {stats.map((stat, i) => (
-          <div key={i} style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '8px', borderLeft: `5px solid ${stat.color}`, boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-            <div style={{ fontSize: '14px', color: '#777', textTransform: 'uppercase', marginBottom: '5px' }}>{stat.title}</div>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#333' }}>{stat.count}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Main Table */}
-      <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-        <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#444' }}>Recent Rides Monitor</h3>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #eee', color: '#666' }}>
-              <th style={{ padding: '10px 5px' }}>Ride ID</th>
-              <th>Customer</th>
-              <th>Driver</th>
-              <th>Route</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentRides.map((ride, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
-                <td style={{ padding: '12px 5px', fontWeight: 'bold', color: '#007bff' }}>{ride.id}</td>
-                <td>{ride.customer}</td>
-                <td>{ride.driver}</td>
-                <td>{ride.pickup} ➔ {ride.dropoff}</td>
-                <td>
-                  <span style={{
-                    padding: '3px 8px',
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    fontWeight: 'bold',
-                    color: '#fff',
-                    backgroundColor: ride.status === 'COMPLETED' ? '#28a745' : ride.status === 'ONGOING' ? '#17a2b8' : '#ffc107'
-                  }}>
-                    {ride.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<WrappedRoute element={<Dashboard />} />} />
+          <Route path="/rides" element={<WrappedRoute element={<Rides />} />} />
+          <Route path="/drivers" element={<WrappedRoute element={<Drivers />} />} />
+          <Route path="/customers" element={<WrappedRoute element={<Customers />} />} />
+          <Route path="/payments" element={<WrappedRoute element={<Payments />} />} />
+          <Route path="/pricing" element={<WrappedRoute element={<Pricing />} />} />
+          <Route path="/analytics" element={<WrappedRoute element={<Analytics />} />} />
+          <Route path="/ratings" element={<WrappedRoute element={<Ratings />} />} />
+          <Route path="/notifications" element={<WrappedRoute element={<Notifications />} />} />
+          <Route path="/offers" element={<WrappedRoute element={<Offers />} />} />
+          <Route path="/staff" element={<WrappedRoute element={<Staff />} />} />
+          <Route path="/settings" element={<WrappedRoute element={<Settings />} />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
-}
+};
 
 export default App;

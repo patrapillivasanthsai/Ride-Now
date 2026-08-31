@@ -23,27 +23,21 @@ async function main() {
     data: [
       {
         vehicleType: VehicleType.BIKE,
-        baseFare: 20.0,      // e.g. $2.00 or Rs 20
-        perKmRate: 6.0,
+        baseFare: 20.0,
+        perKmRate: 8.0,
         perMinuteRate: 1.0,
       },
       {
-        vehicleType: VehicleType.HATCHBACK,
-        baseFare: 40.0,
+        vehicleType: VehicleType.AUTO,
+        baseFare: 30.0,
         perKmRate: 12.0,
-        perMinuteRate: 2.0,
+        perMinuteRate: 1.5,
       },
       {
-        vehicleType: VehicleType.SEDAN,
+        vehicleType: VehicleType.CAB,
         baseFare: 50.0,
-        perKmRate: 15.0,
-        perMinuteRate: 2.5,
-      },
-      {
-        vehicleType: VehicleType.SUV,
-        baseFare: 80.0,
-        perKmRate: 20.0,
-        perMinuteRate: 3.5,
+        perKmRate: 18.0,
+        perMinuteRate: 2.0,
       },
     ],
   });
@@ -101,7 +95,7 @@ async function main() {
               year: 2022,
               color: 'Silver',
               plateNumber: 'RIDE-123-NOW',
-              type: VehicleType.SEDAN,
+              type: VehicleType.CAB,
             },
           },
           driverLocation: {

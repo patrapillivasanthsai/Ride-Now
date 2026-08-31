@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: ridenow-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-2002}
+      POSTGRES_DB: ${POSTGRES_DB:-ridenow}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432" # Securely bind to localhost only for dev tools
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-ridenow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ridenow-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ridenow-backend
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-2002}@db:5432/${POSTGRES_DB:-ridenow}?schema=public"
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-jwtsecret123dev}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY}
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - ridenow-network
+
+  customer-web:
+    build:
+      context: ./customer-web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+    container_name: ridenow-customer-web
+    ports:
+      - "5173:80"
+    networks:
+      - ridenow-network
+
+  admin-web:
+    build:
+      context: ./admin-web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+    container_name: ridenow-admin-web
+    ports:
+      - "5174:80"
+    networks:
+      - ridenow-network
+
+volumes:
+  postgres_data:
+
+networks:
+  ridenow-network:
+    driver: bridge
