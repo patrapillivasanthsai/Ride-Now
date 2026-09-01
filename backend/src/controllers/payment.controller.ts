@@ -392,6 +392,8 @@ export async function getPaymentDetails(req: AuthenticatedRequest, res: Response
       status: payment.status,
       provider: payment.provider,
       transactionId: payment.transactionId,
+      orderId: payment.orderId,
+      paymentId: payment.paymentId,
       createdAt: payment.createdAt,
       updatedAt: payment.updatedAt
     };
@@ -407,4 +409,111 @@ export async function getPaymentDetails(req: AuthenticatedRequest, res: Response
       error: { code: 'INTERNAL_SERVER_ERROR', message: error.message || 'Failed to fetch payment details' }
     });
   }
+}
+
+/**
+ * POST /api/payments/razorpay/create-order
+ */
+export async function createRazorpayOrderHandler(req: AuthenticatedRequest, res: Response) {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' }
+    });
+  }
+
+  const { rideId } = req.body;
+  if (!rideId) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'VALIDATION_ERROR', message: 'rideId is required' }
+    });
+  }
+
+  try {
+    const orderData = await PaymentService.createRazorpayOrder(req.user.id, rideId);
+    return res.status(200).json({
+      success: true,
+      data: orderData
+    });
+  } catch (error: any) {
+    if (error.message === 'RIDE_NOT_FOUND') {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'RIDE_NOT_FOUND', message: 'Ride not found' }
+      });
+    }
+    if (error.message === 'UNAUTHORIZED_RIDE_OWNER') {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'Access denied: You do not own this ride request' }
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_SERVER_ERROR', message: error.message || 'Failed to create Razorpay order' }
+    });
+  }
+}
+
+/**
+ * POST /api/payments/razorpay/verify
+ */
+export async function verifyRazorpayPaymentHandler(req: AuthenticatedRequest, res: Response) {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' }
+    });
+  }
+
+  const { rideId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+  if (!rideId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'rideId, razorpay_order_id, razorpay_payment_id, and razorpay_signature are required'
+      }
+    });
+  }
+
+  try {
+    const result = await PaymentService.verifyRazorpayPayment(
+      req.user.id,
+      rideId,
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error: any) {
+    if (error.message === 'INVALID_RAZORPAY_SIGNATURE') {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_SIGNATURE', message: 'Payment verification failed: Invalid Razorpay signature' }
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_SERVER_ERROR', message: error.message || 'Failed to verify payment' }
+    });
+  }
+}
+
+/**
+ * GET /api/payments/razorpay/config
+ */
+export async function getRazorpayConfigHandler(req: AuthenticatedRequest, res: Response) {
+  return res.status(200).json({
+    success: true,
+    data: {
+      keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_TWT8hToPWs3eLy'
+    }
+  });
 }

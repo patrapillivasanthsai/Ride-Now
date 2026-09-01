@@ -53,16 +53,18 @@ export async function getStats(req: AuthenticatedRequest, res: Response) {
     const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
 
     const [
-      totalUsers, totalCustomers, totalDrivers,
+      totalUsers, totalCustomers, activeCustomers, totalDrivers, activeDrivers,
       onlineDrivers, offlineDrivers, busyDrivers,
       totalRides, completedRides, cancelledRides,
       ongoingRides, todayRides, pendingApprovals,
-      revenueResult, todayRevenueResult,
+      revenueResult, todayRevenueResult, allFaresResult,
       paymentSuccess, paymentFailed, paymentPending
     ] = await Promise.all([
       prisma.user.count(),
       prisma.customer.count(),
+      prisma.customer.count({ where: { isSuspended: false } }),
       prisma.driver.count(),
+      prisma.driver.count({ where: { isApproved: true, isSuspended: false } }),
       prisma.driver.count({ where: { status: DriverStatus.ONLINE } }),
       prisma.driver.count({ where: { status: DriverStatus.OFFLINE } }),
       prisma.driver.count({ where: { status: DriverStatus.BUSY } }),
@@ -80,10 +82,16 @@ export async function getStats(req: AuthenticatedRequest, res: Response) {
       prisma.driver.count({ where: { isApproved: false, isSuspended: false } }),
       prisma.ride.aggregate({ where: { status: RideStatus.RIDE_COMPLETED }, _sum: { fare: true } }),
       prisma.ride.aggregate({ where: { status: RideStatus.RIDE_COMPLETED, createdAt: { gte: todayStart, lt: todayEnd } }, _sum: { fare: true } }),
+      prisma.ride.aggregate({ _sum: { fare: true } }),
       prisma.payment.count({ where: { status: PaymentStatus.COMPLETED } }),
       prisma.payment.count({ where: { status: PaymentStatus.FAILED } }),
       prisma.payment.count({ where: { status: PaymentStatus.PENDING } }),
     ]);
+
+    const completedRevenue = revenueResult._sum.fare || 0;
+    const grossBookingValue = allFaresResult._sum.fare || 0;
+    const driverEarnings = parseFloat((completedRevenue * 0.80).toFixed(2));
+    const platformEarnings = parseFloat((completedRevenue * 0.20).toFixed(2));
 
     // Recent rides
     const recentRides = await prisma.ride.findMany({
@@ -98,12 +106,15 @@ export async function getStats(req: AuthenticatedRequest, res: Response) {
     return res.status(200).json({
       success: true,
       data: {
-        totalUsers, totalCustomers, totalDrivers,
+        totalUsers, totalCustomers, activeCustomers, totalDrivers, activeDrivers,
         driversBreakdown: { online: onlineDrivers, offline: offlineDrivers, busy: busyDrivers },
         totalRides, completedRides, cancelledRides, ongoingRides,
         todayRides, pendingApprovals,
-        completedFaresSum: revenueResult._sum.fare || 0,
+        completedFaresSum: completedRevenue,
         todayRevenue: todayRevenueResult._sum.fare || 0,
+        grossBookingValue,
+        driverEarnings,
+        platformEarnings,
         paymentsBreakdown: { success: paymentSuccess, failed: paymentFailed, pending: paymentPending },
         recentRides
       }
@@ -137,7 +148,15 @@ export async function getDrivers(req: AuthenticatedRequest, res: Response) {
         user: { select: { email: true, createdAt: true } },
         vehicle: true,
         driverLocation: true,
-        rides: { where: { status: RideStatus.RIDE_COMPLETED }, select: { fare: true } },
+        documents: true,
+        payoutAccounts: true,
+        rides: {
+          where: {
+            status: RideStatus.RIDE_COMPLETED,
+            payments: { some: { status: PaymentStatus.COMPLETED } }
+          },
+          select: { fare: true }
+        },
         ratings: { select: { score: true, raterRole: true } }
       },
       orderBy: { createdAt: 'desc' }
@@ -152,9 +171,11 @@ export async function getDrivers(req: AuthenticatedRequest, res: Response) {
         : null;
       return {
         id: driver.id, userId: driver.userId, name: driver.name, phone: driver.phone,
+        dob: driver.dob, gender: driver.gender, selfieUrl: driver.selfieUrl,
         isApproved: driver.isApproved, isSuspended: driver.isSuspended, suspendReason: driver.suspendReason,
         status: driver.status, licenseNumber: driver.licenseNumber,
         createdAt: driver.createdAt, user: driver.user, vehicle: driver.vehicle,
+        documents: driver.documents, payoutAccounts: driver.payoutAccounts,
         driverLocation: driver.driverLocation, totalRides: driver.rides.length,
         totalEarnings, avgRating
       };
@@ -175,6 +196,12 @@ export async function approveDriver(req: AuthenticatedRequest, res: Response) {
     if (!driver) return res.status(404).json({ success: false, error: { code: 'DRIVER_NOT_FOUND', message: 'Driver not found' } });
 
     const updated = await prisma.driver.update({ where: { id }, data: { isApproved: true } });
+
+    // Mark all driver documents as verified
+    await prisma.driverDocument.updateMany({
+      where: { driverId: id },
+      data: { status: 'VERIFIED' }
+    }).catch(() => {});
 
     // Send notification to driver
     await prisma.driverNotification.create({
@@ -433,10 +460,40 @@ export async function assignDriver(req: AuthenticatedRequest, res: Response) {
       });
     }
 
-    const driver = await prisma.driver.findUnique({
-      where: { id: driverId },
-      include: { vehicle: true, user: true }
-    });
+    let targetDriverId = driverId;
+    let driver: any = null;
+
+    if (driverId === 'random' || driverId === 'auto') {
+      const eligible = await prisma.driver.findMany({
+        where: {
+          isApproved: true,
+          isSuspended: false,
+          status: { in: [DriverStatus.ONLINE, DriverStatus.OFFLINE] },
+          vehicle: { type: ride.vehicleType }
+        },
+        include: { vehicle: true, user: true }
+      });
+
+      if (!eligible || eligible.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NO_ELIGIBLE_DRIVER', message: `No eligible approved ${ride.vehicleType} driver found.` }
+        });
+      }
+
+      // Prefer ONLINE drivers if available, otherwise random eligible
+      const onlineDrivers = eligible.filter(d => d.status === DriverStatus.ONLINE);
+      const pool = onlineDrivers.length > 0 ? onlineDrivers : eligible;
+      const picked = pool[Math.floor(Math.random() * pool.length)];
+      driver = picked;
+      targetDriverId = picked.id;
+    } else {
+      driver = await prisma.driver.findUnique({
+        where: { id: targetDriverId },
+        include: { vehicle: true, user: true }
+      });
+    }
+
     if (!driver) return res.status(404).json({ success: false, error: { code: 'DRIVER_NOT_FOUND', message: 'Driver not found' } });
 
     // Validate vehicle type compatibility
@@ -455,12 +512,12 @@ export async function assignDriver(req: AuthenticatedRequest, res: Response) {
     const [updatedRide] = await prisma.$transaction([
       prisma.ride.update({
         where: { id },
-        data: { driverId, status: RideStatus.DRIVER_ASSIGNED }
+        data: { driverId: targetDriverId, status: RideStatus.DRIVER_ASSIGNED }
       }),
       prisma.rideStatusHistory.create({
         data: { rideId: id, status: RideStatus.DRIVER_ASSIGNED, note: 'Manually assigned by admin' }
       }),
-      prisma.driver.update({ where: { id: driverId }, data: { status: DriverStatus.BUSY } })
+      prisma.driver.update({ where: { id: targetDriverId }, data: { status: DriverStatus.BUSY } })
     ]);
 
     // Notify driver
@@ -1271,5 +1328,283 @@ export async function updateSettings(req: AuthenticatedRequest, res: Response) {
     return res.status(200).json({ success: true, data: settingsMap });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+  }
+}
+
+
+// ─── DELETE /api/admin/drivers/:id ──────────────────────────────────────────
+
+
+
+
+// ─── GET /api/admin/drivers/:id ─────────────────────────────────────────────
+
+export async function getDriverDetail(req: AuthenticatedRequest, res: Response) {
+  const { id } = req.params;
+  try {
+    const driver = await prisma.driver.findFirst({
+      where: {
+        OR: [
+          { id: id },
+          { userId: id }
+        ]
+      },
+      include: {
+        user: { select: { id: true, email: true, role: true, createdAt: true, updatedAt: true } },
+        vehicle: true,
+        driverLocation: true,
+        documents: { orderBy: { createdAt: 'desc' } },
+        payoutAccounts: { orderBy: { createdAt: 'desc' } },
+        walletTransactions: { orderBy: { createdAt: 'desc' }, take: 20 },
+        ratings: {
+          where: { raterRole: UserRole.CUSTOMER },
+          orderBy: { createdAt: 'desc' },
+          take: 10
+        },
+        rides: {
+          orderBy: { createdAt: 'desc' },
+          take: 30,
+          include: {
+            customer: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                user: { select: { email: true } }
+              }
+            }
+          }
+        },
+        supportTickets: { orderBy: { createdAt: 'desc' }, take: 10 }
+      }
+    });
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'DRIVER_NOT_FOUND', message: 'Driver not found' }
+      });
+    }
+
+    // Performance & Earnings metrics
+    const completedRides = driver.rides.filter(r => r.status === RideStatus.RIDE_COMPLETED);
+    const cancelledRides = driver.rides.filter(r => r.status === RideStatus.CANCELLED);
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dayOfWeek = now.getDay();
+    const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const mondayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distanceToMonday);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    let totalEarnings = 0;
+    let todayEarnings = 0;
+    let weeklyEarnings = 0;
+    let monthlyEarnings = 0;
+    let totalDistanceKm = 0;
+
+    completedRides.forEach(r => {
+      const share = parseFloat(((r.fare || 0) * 0.80).toFixed(2));
+      totalEarnings += share;
+      if (r.distance) totalDistanceKm += r.distance;
+
+      const rDate = new Date(r.createdAt);
+      if (rDate >= todayStart) todayEarnings += share;
+      if (rDate >= mondayStart) weeklyEarnings += share;
+      if (rDate >= monthStart) monthlyEarnings += share;
+    });
+
+    totalEarnings = parseFloat(totalEarnings.toFixed(2));
+    todayEarnings = parseFloat(todayEarnings.toFixed(2));
+    weeklyEarnings = parseFloat(weeklyEarnings.toFixed(2));
+    monthlyEarnings = parseFloat(monthlyEarnings.toFixed(2));
+    totalDistanceKm = parseFloat(totalDistanceKm.toFixed(1));
+
+    const totalTrips = completedRides.length;
+    const averageEarningsPerTrip = totalTrips > 0 ? parseFloat((totalEarnings / totalTrips).toFixed(2)) : 0;
+
+    const customerRatings = driver.ratings.filter(r => r.raterRole === UserRole.CUSTOMER);
+    const avgRating = customerRatings.length > 0
+      ? parseFloat((customerRatings.reduce((sum, r) => sum + r.score, 0) / customerRatings.length).toFixed(1))
+      : null;
+
+    // Referrals count
+    const totalInvited = await prisma.driver.count({
+      where: { referredBy: driver.referralCode || 'NONE' }
+    });
+    const joinedCount = await prisma.driver.count({
+      where: { referredBy: driver.referralCode || 'NONE', isApproved: true }
+    });
+
+    // Audit logs for this driver
+    const auditLogs = await prisma.auditLog.findMany({
+      where: {
+        OR: [
+          { targetId: driver.id },
+          { targetId: driver.userId }
+        ]
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 15,
+      include: {
+        actor: {
+          include: {
+            user: { select: { email: true } }
+          }
+        }
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: driver.id,
+        userId: driver.userId,
+        name: driver.name,
+        phone: driver.phone,
+        dob: driver.dob,
+        gender: driver.gender,
+        selfieUrl: driver.selfieUrl,
+        licenseNumber: driver.licenseNumber,
+        isApproved: driver.isApproved,
+        isSuspended: driver.isSuspended,
+        suspendedAt: driver.suspendedAt,
+        suspendReason: driver.suspendReason,
+        status: driver.status,
+        walletBalance: driver.walletBalance,
+        totalEarnings,
+        referralCode: driver.referralCode,
+        referredBy: driver.referredBy,
+        trainingCompleted: driver.trainingCompleted,
+        preferredArea: driver.preferredArea,
+        createdAt: driver.createdAt,
+        updatedAt: driver.updatedAt,
+        user: driver.user,
+        vehicle: driver.vehicle,
+        driverLocation: driver.driverLocation,
+        documents: driver.documents,
+        payoutAccounts: driver.payoutAccounts,
+        walletTransactions: driver.walletTransactions,
+        performance: {
+          totalCompletedTrips: totalTrips,
+          totalCancelledTrips: cancelledRides.length,
+          totalDistanceKm,
+          totalEarnings,
+          todayEarnings,
+          weeklyEarnings,
+          monthlyEarnings,
+          averageEarningsPerTrip,
+          averageRating: avgRating,
+          totalRatingsCount: customerRatings.length
+        },
+        referrals: {
+          referralCode: driver.referralCode,
+          totalInvited,
+          joinedCount,
+          referralEarnings: joinedCount * 1500
+        },
+        ratings: driver.ratings,
+        recentRides: driver.rides.map(r => ({
+          id: r.id,
+          status: r.status,
+          vehicleType: r.vehicleType,
+          pickupAddress: r.pickupAddress,
+          dropoffAddress: r.dropoffAddress,
+          fare: r.fare,
+          driverShare: parseFloat(((r.fare || 0) * 0.80).toFixed(2)),
+          distance: r.distance,
+          duration: r.duration,
+          createdAt: r.createdAt,
+          customer: {
+            id: r.customer?.id,
+            name: r.customer?.name || 'Customer',
+            phone: r.customer?.phone,
+            email: r.customer?.user?.email
+          }
+        })),
+        supportTickets: driver.supportTickets,
+        auditLogs: auditLogs.map(a => ({
+          id: a.id,
+          action: a.action,
+          targetType: a.targetType,
+          metadata: a.metadata,
+          createdAt: a.createdAt,
+          actorEmail: a.actor?.user?.email || 'Admin'
+        }))
+      }
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_SERVER_ERROR', message: error.message }
+    });
+  }
+}
+
+// ─── DELETE /api/admin/drivers/:id ──────────────────────────────────────────
+
+export async function deleteDriver(req: AuthenticatedRequest, res: Response) {
+  const { id } = req.params;
+  try {
+    const driver = await prisma.driver.findFirst({
+      where: {
+        OR: [
+          { id: id },
+          { userId: id }
+        ]
+      },
+      include: { user: true }
+    });
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'DRIVER_NOT_FOUND', message: 'Driver not found' }
+      });
+    }
+
+    const driverId = driver.id;
+    const userId = driver.userId;
+
+    // Unlink driver from historical rides to preserve platform booking statistics safely
+    await prisma.ride.updateMany({
+      where: { driverId: driverId },
+      data: { driverId: null }
+    }).catch(() => {});
+
+    // Delete related transient records
+    await prisma.driverDutySession.deleteMany({ where: { driverId: driverId } }).catch(() => {});
+    await prisma.driverLocation.deleteMany({ where: { driverId: driverId } }).catch(() => {});
+    await prisma.driverNotification.deleteMany({ where: { driverId: driverId } }).catch(() => {});
+    await prisma.rideDeclinedDriver.deleteMany({ where: { driverId: driverId } }).catch(() => {});
+    await prisma.driverDocument.deleteMany({ where: { driverId: driverId } }).catch(() => {});
+    await prisma.driverPayoutAccount.deleteMany({ where: { driverId: driverId } }).catch(() => {});
+    await prisma.driverWalletTransaction.deleteMany({ where: { driverId: driverId } }).catch(() => {});
+    await prisma.supportTicket.deleteMany({ where: { driverId: driverId } }).catch(() => {});
+    await prisma.rating.deleteMany({ where: { driverId: driverId } }).catch(() => {});
+    await prisma.vehicle.deleteMany({ where: { driverId: driverId } }).catch(() => {});
+
+    // Delete driver and user credentials
+    await prisma.driver.delete({ where: { id: driverId } });
+    if (userId) {
+      await prisma.user.delete({ where: { id: userId } }).catch(() => {});
+    }
+
+    await writeAuditLog(req.user!.id, AuditAction.DRIVER_REJECTED, 'Driver', driverId, { action: 'PERMANENTLY_DELETED' });
+
+    // Notify connected client if online
+    if (userId) {
+      emitToUser(userId, 'account_deleted', { message: 'Your account has been deleted by an administrator.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Driver and associated profile deleted successfully.'
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_SERVER_ERROR', message: error.message }
+    });
   }
 }

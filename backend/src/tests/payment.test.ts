@@ -181,10 +181,12 @@ describe('Stripe Payment Integration Tests', () => {
         .set('Authorization', `Bearer ${driverToken}`)
         .send({ status: 'DRIVER_ARRIVED' });
 
+      const currentTestRide = await prisma.ride.findUnique({ where: { id: testRideId } });
+
       await request(app)
         .patch(`/api/driver/rides/${testRideId}/status`)
         .set('Authorization', `Bearer ${driverToken}`)
-        .send({ status: 'RIDE_STARTED' });
+        .send({ status: 'RIDE_STARTED', otp: currentTestRide?.otp });
 
       // Driver completes ride
       const res = await request(app)

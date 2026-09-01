@@ -305,10 +305,11 @@ describe('Ride Booking & State Machine Integration Tests', () => {
     });
 
     it('7. Transitions successfully DRIVER_ARRIVED -> RIDE_STARTED', async () => {
+      const currentRide = await prisma.ride.findUnique({ where: { id: testRideId } });
       const res = await request(app)
         .patch(`/api/driver/rides/${testRideId}/status`)
         .set('Authorization', `Bearer ${driverToken}`)
-        .send({ status: 'RIDE_STARTED' });
+        .send({ status: 'RIDE_STARTED', otp: currentRide?.otp });
 
       expect(res.status).toBe(200);
       expect(res.body.data.status).toBe('RIDE_STARTED');

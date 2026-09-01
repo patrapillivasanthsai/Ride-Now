@@ -1,10 +1,11 @@
 import { Request, Response } from 'express';
-import { PrismaClient, RideStatus, VehicleType, UserRole, PaymentStatus } from '@prisma/client';
+import { PrismaClient, RideStatus, VehicleType, UserRole, PaymentStatus, PaymentMethod } from '@prisma/client';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { emitToRide, emitToRole } from '../socket';
 import { sendPushNotification } from '../utils/firebase';
 import { stripe } from '../utils/stripe';
 import { PaymentService } from '../services/payment.service';
+import { DispatchService } from '../services/dispatch.service';
 
 const prisma = new PrismaClient();
 
@@ -255,6 +256,9 @@ export async function createRide(req: AuthenticatedRequest, res: Response) {
       transactionId = paymentIntent.id;
     }
 
+    // Generate random 4-digit numeric start OTP (0000 - 9999)
+    const generatedOtp = String(Math.floor(1000 + Math.random() * 9000));
+
     // Atomic transaction for Ride creation and RideStatusHistory logging
     const newRide = await prisma.$transaction(async (tx) => {
       const ride = await tx.ride.create({
@@ -273,7 +277,8 @@ export async function createRide(req: AuthenticatedRequest, res: Response) {
           baseFare,
           distanceFare,
           timeFare,
-          status: initialStatus
+          status: initialStatus,
+          otp: generatedOtp
         }
       });
 
@@ -284,11 +289,16 @@ export async function createRide(req: AuthenticatedRequest, res: Response) {
         }
       });
 
+      let resolvedMethod: PaymentMethod = PaymentMethod.CARD;
+      if (paymentMethodId === 'CASH') resolvedMethod = PaymentMethod.CASH;
+      else if (paymentMethodId === 'UPI' || paymentMethodId.startsWith('upi:')) resolvedMethod = PaymentMethod.UPI;
+
       await tx.payment.create({
         data: {
           rideId: ride.id,
           amount: totalFare,
           provider: paymentProvider,
+          paymentMethod: resolvedMethod,
           transactionId,
           status: initialPayStatus
         }
@@ -297,9 +307,20 @@ export async function createRide(req: AuthenticatedRequest, res: Response) {
       return ride;
     });
 
+    // 📣 Print Start OTP prominently in terminal
+    console.log(`\n======================================================`);
+    console.log(`🔐 [RIDENOW RIDE START OTP]`);
+    console.log(`   Ride ID    : ${newRide.id}`);
+    console.log(`   Passenger  : ${customer.name || customer.phone || 'Customer'}`);
+    console.log(`   Vehicle    : ${vehicleType}`);
+    console.log(`   👉 OTP CODE: >>> ${generatedOtp} <<<`);
+    console.log(`======================================================\n`);
+
     if (isAuthorized) {
-      // Broadcast available ride to online drivers
-      emitToRole(UserRole.DRIVER, 'available_ride_created', { ride: newRide });
+      // Automatically match and dispatch to eligible online drivers matching vehicle type
+      DispatchService.dispatchRide(newRide.id).catch(err => {
+        console.error('Auto-dispatch failed during ride creation:', err);
+      });
     }
 
     return res.status(201).json({
@@ -509,6 +530,24 @@ export async function updateRideStatus(req: AuthenticatedRequest, res: Response)
       });
     }
 
+    // Enforce 4-digit Start OTP verification when driver starts the ride
+    if (status === RideStatus.RIDE_STARTED) {
+      const submittedOtp = req.body.otp !== undefined ? String(req.body.otp).trim() : '';
+      const expectedOtp = ride.otp ? String(ride.otp).trim() : '1234';
+      console.log(`\n🔍 [OTP Verification Check] Ride: ${id} | Received: "${submittedOtp}" | Required: "${expectedOtp}"`);
+      if (!submittedOtp || submittedOtp !== expectedOtp) {
+        console.log(`❌ [OTP Verification Failed] Incorrect code: "${submittedOtp}" != "${expectedOtp}"\n`);
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_OTP',
+            message: 'Wrong OTP! Please verify the 4-digit Start OTP with the passenger.'
+          }
+        });
+      }
+      console.log(`✅ [OTP Verification Success] Match confirmed! Starting ride: ${id}\n`);
+    }
+
     // Atomic transaction for conditional update and status logging
     const updatedRide = await prisma.$transaction(async (tx) => {
       const updateData: any = { status };
@@ -697,7 +736,13 @@ export async function getAvailableRides(req: AuthenticatedRequest, res: Response
 
     const activeRides = await prisma.ride.findMany({
       where: {
-        status: { in: [RideStatus.REQUESTED, RideStatus.SEARCHING_DRIVER] }
+        status: { in: [RideStatus.REQUESTED, RideStatus.SEARCHING_DRIVER] },
+        declinedDrivers: {
+          none: { driverId: driver.id }
+        }
+      },
+      include: {
+        payments: { orderBy: { createdAt: 'desc' }, take: 1 }
       }
     });
 
@@ -707,17 +752,20 @@ export async function getAvailableRides(req: AuthenticatedRequest, res: Response
 
     const availableRides = activeRides
       .filter((ride) => {
-        // Check vehicle type compatibility
+        // Strict vehicle type compatibility
         if (ride.vehicleType !== vehicleType) return false;
 
-        // Check distance <= 5.0 km
+        // Check distance <= 10.0 km
         const distance = calculateDistance(dLat, dLng, ride.pickupLat, ride.pickupLng);
-        return distance <= 5.0;
+        return distance <= 10.0;
       })
       .map((ride) => {
         const distance = calculateDistance(dLat, dLng, ride.pickupLat, ride.pickupLng);
+        const paymentInfo = ride.payments[0];
         return {
           ...ride,
+          paymentMethod: paymentInfo?.paymentMethod || (paymentInfo?.provider === 'CASH' ? 'CASH' : 'CARD'),
+          paymentStatus: paymentInfo?.status || 'PENDING',
           distanceToPickup: distance
         };
       });
@@ -734,6 +782,49 @@ export async function getAvailableRides(req: AuthenticatedRequest, res: Response
     return res.status(500).json({
       success: false,
       error: { code: 'INTERNAL_SERVER_ERROR', message: error.message || 'Failed to query matching rides' }
+    });
+  }
+}
+
+/**
+ * PATCH /api/driver/rides/:id/decline
+ */
+export async function declineRide(req: AuthenticatedRequest, res: Response) {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' }
+    });
+  }
+
+  const { id } = req.params;
+  const { reason } = req.body || {};
+
+  try {
+    const driver = await prisma.driver.findUnique({
+      where: { userId: req.user.id }
+    });
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'DRIVER_PROFILE_NOT_FOUND', message: 'Driver profile not found' }
+      });
+    }
+
+    const result = await DispatchService.handleDriverDecline(id, driver.id, reason);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        declined: true,
+        dispatchedNext: result.dispatched
+      }
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_SERVER_ERROR', message: error.message || 'Failed to decline ride' }
     });
   }
 }
@@ -837,7 +928,23 @@ export async function acceptRide(req: AuthenticatedRequest, res: Response) {
         data: { status: 'BUSY' }
       });
 
-      return tx.ride.findUnique({ where: { id } });
+      return tx.ride.findUnique({
+        where: { id },
+        include: {
+          driver: {
+            include: {
+              user: { select: { email: true } },
+              vehicle: true
+            }
+          },
+          customer: {
+            include: {
+              user: { select: { email: true } }
+            }
+          },
+          payments: true
+        }
+      });
     });
 
     if (updatedRide) {

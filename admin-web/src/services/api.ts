@@ -51,6 +51,8 @@ export const api = {
   getStats: async () => apiFetch('/api/admin/stats'),
 
   // ── Drivers ───────────────────────────────────────────────────────────────
+  getDriverDetail: async (id: string) => apiFetch(`/api/admin/drivers/${id}`),
+  deleteDriver: async (id: string) => apiFetch(`/api/admin/drivers/${id}`, { method: 'DELETE' }),
   getDrivers: async (params?: { isApproved?: boolean; status?: string; vehicleType?: string; search?: string }) => {
     const q = new URLSearchParams();
     if (params?.isApproved !== undefined) q.set('isApproved', String(params.isApproved));
@@ -60,10 +62,10 @@ export const api = {
     return apiFetch(`/api/admin/drivers?${q}`);
   },
 
-  approveDriver: async (id: string) => apiFetch(`/api/admin/drivers/${id}/approve`, { method: 'PATCH' }),
-  rejectDriver: async (id: string, reason?: string) => apiFetch(`/api/admin/drivers/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ reason }) }),
-  suspendDriver: async (id: string, reason: string) => apiFetch(`/api/admin/drivers/${id}/suspend`, { method: 'PATCH', body: JSON.stringify({ reason }) }),
-  activateDriver: async (id: string) => apiFetch(`/api/admin/drivers/${id}/activate`, { method: 'PATCH' }),
+  approveDriver: async (id: string) => apiFetch(`/api/admin/drivers/${id}/approve`, { method: 'POST', body: JSON.stringify({}) }),
+  rejectDriver: async (id: string, reason?: string) => apiFetch(`/api/admin/drivers/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  suspendDriver: async (id: string, reason: string) => apiFetch(`/api/admin/drivers/${id}/suspend`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  activateDriver: async (id: string) => apiFetch(`/api/admin/drivers/${id}/activate`, { method: 'POST', body: JSON.stringify({}) }),
 
   // ── Rides ─────────────────────────────────────────────────────────────────
   getRides: async (params?: { status?: string; vehicleType?: string; search?: string; page?: number; dateFrom?: string; dateTo?: string }) => {
@@ -107,8 +109,8 @@ export const api = {
     return apiFetch(`/api/admin/customers?${q}`);
   },
   getCustomerDetail: async (id: string) => apiFetch(`/api/admin/customers/${id}`),
-  suspendCustomer: async (id: string, reason: string) => apiFetch(`/api/admin/customers/${id}/suspend`, { method: 'PATCH', body: JSON.stringify({ reason }) }),
-  reactivateCustomer: async (id: string) => apiFetch(`/api/admin/customers/${id}/reactivate`, { method: 'PATCH' }),
+  suspendCustomer: async (id: string, reason: string) => apiFetch(`/api/admin/customers/${id}/suspend`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  reactivateCustomer: async (id: string) => apiFetch(`/api/admin/customers/${id}/reactivate`, { method: 'POST', body: JSON.stringify({}) }),
 
   // ── Analytics ─────────────────────────────────────────────────────────────
   getAnalytics: async (period: number = 7) => apiFetch(`/api/admin/analytics?period=${period}`),
@@ -121,8 +123,8 @@ export const api = {
     if (params?.page) q.set('page', String(params.page));
     return apiFetch(`/api/admin/ratings?${q}`);
   },
-  flagRating: async (id: string, flagReason: string) => apiFetch(`/api/admin/ratings/${id}/flag`, { method: 'PATCH', body: JSON.stringify({ flagReason }) }),
-  resolveRating: async (id: string, resolveNote: string) => apiFetch(`/api/admin/ratings/${id}/resolve`, { method: 'PATCH', body: JSON.stringify({ resolveNote }) }),
+  flagRating: async (id: string, flagReason: string) => apiFetch(`/api/admin/ratings/${id}/flag`, { method: 'POST', body: JSON.stringify({ flagReason }) }),
+  resolveRating: async (id: string, resolveNote: string) => apiFetch(`/api/admin/ratings/${id}/resolve`, { method: 'POST', body: JSON.stringify({ resolveNote }) }),
 
   // ── Notifications ─────────────────────────────────────────────────────────
   getAdminNotifications: async (page?: number) => apiFetch(`/api/admin/notifications?page=${page || 1}`),

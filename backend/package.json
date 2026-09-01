@@ -9,7 +9,7 @@
     "start": "node dist/server.js",
     "db:migrate": "prisma migrate dev --name init",
     "db:push": "prisma db push",
-    "db:studio": "prisma studio",
+    "db:studio": "prisma studio --port 5556",
     "test": "jest --runInBand --detectOpenHandles"
   },
   "dependencies": {
@@ -21,6 +21,7 @@
     "firebase-admin": "^14.3.0",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "razorpay": "^2.9.8",
     "socket.io": "^4.8.3",
     "stripe": "^22.5.0"
   },

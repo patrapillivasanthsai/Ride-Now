@@ -3,6 +3,7 @@ import { PrismaClient, PaymentStatus, RideStatus } from '@prisma/client';
 import { stripe } from '../utils/stripe';
 import { emitToRide } from '../socket';
 import { PaymentService } from '../services/payment.service';
+import { DispatchService } from '../services/dispatch.service';
 
 const prisma = new PrismaClient();
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_mock';
@@ -59,6 +60,11 @@ export async function handleStripeWebhook(req: Request, res: Response) {
               });
 
               emitToRide(payment.rideId, 'ride_status_changed', { ride: updatedRide });
+
+              // Trigger automated driver matching and dispatch
+              DispatchService.dispatchRide(payment.rideId).catch(err => {
+                console.error('Webhook auto-dispatch failed:', err);
+              });
             }
           });
         }

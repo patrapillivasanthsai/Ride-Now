@@ -233,10 +233,12 @@ describe('Phase 16 — Production Readiness & E2E Validation Tests', () => {
         .set('Authorization', `Bearer ${driverToken}`)
         .send({ status: 'DRIVER_ARRIVED' });
 
+      const e2eRide = await prisma.ride.findUnique({ where: { id: rideId } });
+
       await request(app)
         .patch(`/api/driver/rides/${rideId}/status`)
         .set('Authorization', `Bearer ${driverToken}`)
-        .send({ status: 'RIDE_STARTED' });
+        .send({ status: 'RIDE_STARTED', otp: e2eRide?.otp });
 
       // Driver completes ride
       const res = await request(app)

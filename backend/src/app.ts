@@ -21,10 +21,23 @@ const corsOrigins = process.env.CORS_ORIGINS
   : '*';
 
 app.use(cors({
-  origin: corsOrigins,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+  credentials: true
 }));
+
+// Preflight handler
+app.use((req: Request, res: Response, next: NextFunction) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
 
 // Apply raw webhook route before json parser
 app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), handleStripeWebhook);
@@ -63,7 +76,7 @@ const sensitiveLimiter = rateLimit({
 });
 
 // Minimal health check endpoint
-app.get('/health', (req: Request, res: Response) => {
+app.get(['/health', '/api/health'], (req: Request, res: Response) => {
   res.status(200).json({
     success: true,
     message: "RideNow backend is running"

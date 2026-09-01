@@ -1,235 +1,326 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  TouchableOpacity,
-  FlatList,
-  Platform,
-  Alert
-} from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native';
 import { api } from '../services/api';
+import { useTheme } from '../context/ThemeContext';
+import { AppHeader } from '../components/AppHeader';
 
-interface EarningsProps {
-  onNavigate: (screen: string) => void;
+interface EarningsScreenProps {
+  onNavigate: (screen: string, params?: any) => void;
 }
 
-export function Earnings({ onNavigate }: EarningsProps) {
+export function Earnings({ onNavigate }: EarningsScreenProps) {
+  const { theme } = useTheme();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [timeFilter, setTimeFilter] = useState<'TODAY' | 'WEEK' | 'MONTH'>('TODAY');
 
-  useEffect(() => {
-    async function loadEarnings() {
-      try {
-        const earningsData = await api.getEarnings();
-        setData(earningsData);
-      } catch (error: any) {
-        Alert.alert('Error', 'Failed to retrieve earnings summary.');
-        onNavigate('DASHBOARD');
-      } finally {
-        setLoading(false);
-      }
+  const loadEarnings = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const result = await api.getEarnings();
+      setData(result);
+    } catch {
+      setData({
+        dailyEarnings: 0.00,
+        dailyTrips: 0,
+        dailyAvgPerTrip: 0.00,
+        weeklyEarnings: 0.00,
+        weeklyTrips: 0,
+        weeklyAvgPerTrip: 0.00,
+        monthlyEarnings: 0.00,
+        monthlyTrips: 0,
+        monthlyAvgPerTrip: 0.00,
+        totalEarnings: 0.00,
+        totalTrips: 0,
+        averagePerTrip: 0.00,
+        todayOnlineTime: '0h 00m',
+        weeklyOnlineTime: '0h 00m',
+        monthlyOnlineTime: '0h 00m',
+        history: []
+      });
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-    loadEarnings();
-  }, []);
+  };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#ffc107" />
-        <Text style={styles.loadingText}>Retrieving financial summary...</Text>
-      </View>
-    );
-  }
+  useEffect(() => { loadEarnings(); }, []);
+
+  const getDisplayedEarnings = () => {
+    if (timeFilter === 'WEEK') return data?.weeklyEarnings || 0.00;
+    if (timeFilter === 'MONTH') return data?.monthlyEarnings || 0.00;
+    return data?.dailyEarnings || 0.00;
+  };
+
+  const getTripsCount = () => {
+    if (timeFilter === 'WEEK') return data?.weeklyTrips ?? 0;
+    if (timeFilter === 'MONTH') return data?.monthlyTrips ?? 0;
+    return data?.dailyTrips ?? 0;
+  };
+
+  const getAvgPerTrip = () => {
+    if (timeFilter === 'WEEK') {
+      return data?.weeklyAvgPerTrip ?? (data?.weeklyTrips > 0 ? (data.weeklyEarnings / data.weeklyTrips) : 0);
+    }
+    if (timeFilter === 'MONTH') {
+      return data?.monthlyAvgPerTrip ?? (data?.monthlyTrips > 0 ? (data.monthlyEarnings / data.monthlyTrips) : 0);
+    }
+    return data?.dailyAvgPerTrip ?? (data?.dailyTrips > 0 ? (data.dailyEarnings / data.dailyTrips) : 0);
+  };
+
+  const getOnlineTime = () => {
+    if (timeFilter === 'WEEK') return data?.weeklyOnlineTime || '0h 00m';
+    if (timeFilter === 'MONTH') return data?.monthlyOnlineTime || '0h 00m';
+    return data?.todayOnlineTime || '0h 00m';
+  };
+
+  const historyList = data?.history || [];
 
   return (
-    <View style={styles.container}>
-      {/* Top Header */}
-      <View style={styles.topBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => onNavigate('DASHBOARD')}>
-          <Text style={styles.backBtnText}>&larr; Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.topBarTitle}>My Payouts</Text>
-        <View style={{ width: 50 }} />
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
+      <AppHeader
+        title="Earnings & Incentives"
+        showBack
+        onBack={() => onNavigate('DASHBOARD')}
+      />
 
-      {/* Summary Cards */}
-      <View style={styles.summaryContainer}>
-        <View style={styles.summaryCard}>
-          <Text style={styles.cardLabel}>TODAY</Text>
-          <Text style={styles.cardValue}>₹{data?.dailyEarnings?.toFixed(2) || '0.00'}</Text>
+      {loading ? (
+        <View style={styles.centerLoading}>
+          <ActivityIndicator size="large" color="#00b562" />
         </View>
-        <View style={styles.summaryCard}>
-          <Text style={styles.cardLabel}>THIS WEEK</Text>
-          <Text style={styles.cardValue}>₹{data?.weeklyEarnings?.toFixed(2) || '0.00'}</Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Text style={styles.cardLabel}>ALL-TIME</Text>
-          <Text style={[styles.cardValue, { color: '#28a745' }]}>
-            ₹{data?.totalEarnings?.toFixed(2) || '0.00'}
-          </Text>
-        </View>
-      </View>
-
-      <View style={{ paddingHorizontal: 15, paddingVertical: 10 }}>
-        <Text style={{ color: '#888', fontSize: 12 }}>
-          Commission Split: {((data?.commissionRate || 0.80) * 100).toFixed(0)}% driver share | 20% system fee
-        </Text>
-      </View>
-
-      {/* History List */}
-      <FlatList
-        data={data?.history || []}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        ListHeaderComponent={<Text style={styles.historyHeader}>Completed Trips Logs</Text>}
-        ListEmptyComponent={
-          <View style={styles.emptyView}>
-            <Text style={styles.emptyText}>No completed trips payouts recorded.</Text>
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadEarnings(true)} tintColor="#00b562" />}
+        >
+          {/* Time Filter Pills */}
+          <View style={[styles.filterContainer, { backgroundColor: theme.cardSecondary }]}>
+            {(['TODAY', 'WEEK', 'MONTH'] as const).map((filter) => (
+              <TouchableOpacity
+                key={filter}
+                style={[
+                  styles.filterBtn,
+                  timeFilter === filter && { backgroundColor: theme.card, borderColor: '#00b562', borderWidth: 1 }
+                ]}
+                onPress={() => setTimeFilter(filter)}
+              >
+                <Text style={[styles.filterText, { color: timeFilter === filter ? '#00b562' : theme.textMuted, fontWeight: timeFilter === filter ? '800' : '600' }]}>
+                  {filter === 'TODAY' ? 'Today' : filter === 'WEEK' ? 'This Week' : 'This Month'}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        }
-        renderItem={({ item }) => (
-          <View style={styles.tripCard}>
-            <View style={styles.tripHeader}>
-              <Text style={styles.tripDate}>{new Date(item.createdAt).toLocaleDateString()}</Text>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.payoutText}>+₹{item.driverShare.toFixed(2)}</Text>
-                <Text style={styles.fareLabel}>Fare: ₹{item.fare.toFixed(2)}</Text>
+
+          {/* Hero Earnings Card */}
+          <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: '#00b562' }]}>
+            <Text style={[styles.heroLabel, { color: theme.textMuted }]}>
+              {timeFilter === 'TODAY' ? "TODAY'S NET EARNINGS" : timeFilter === 'WEEK' ? "THIS WEEK'S EARNINGS" : "THIS MONTH'S EARNINGS"}
+            </Text>
+            <Text style={[styles.heroAmount, { color: '#00b562' }]}>₹{getDisplayedEarnings().toFixed(2)}</Text>
+
+            <View style={styles.statsRow}>
+              <View style={styles.statCol}>
+                <Text style={[styles.statLabel, { color: theme.textMuted }]}>TRIPS</Text>
+                <Text style={[styles.statVal, { color: theme.text }]}>{getTripsCount()}</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statCol}>
+                <Text style={[styles.statLabel, { color: theme.textMuted }]}>ONLINE</Text>
+                <Text style={[styles.statVal, { color: theme.text }]}>{getOnlineTime()}</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statCol}>
+                <Text style={[styles.statLabel, { color: theme.textMuted }]}>AVG / TRIP</Text>
+                <Text style={[styles.statVal, { color: theme.text }]}>₹{getAvgPerTrip().toFixed(0)}</Text>
               </View>
             </View>
-            <View style={styles.addressContainer}>
-              <Text style={styles.addressText} numberOfLines={1}>
-                🟢 {item.pickupAddress}
-              </Text>
-              <Text style={styles.addressText} numberOfLines={1}>
-                🔴 {item.dropoffAddress}
-              </Text>
+          </View>
+
+          {/* Incentives & Target Bonus */}
+          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border, marginTop: 16 }]}>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>Performance Targets & Bonuses</Text>
+            <Text style={[styles.cardSub, { color: theme.textMuted }]}>Complete trips to unlock milestone bonuses</Text>
+
+            <View style={{ gap: 8, marginTop: 12 }}>
+              <View style={[styles.incentiveRow, { backgroundColor: theme.cardSecondary }]}>
+                <Text style={{ fontSize: 20, marginRight: 10 }}>🎯</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.incentiveTitle, { color: theme.text }]}>Daily Target (10 Trips)</Text>
+                  <Text style={{ fontSize: 11, color: theme.textMuted }}>Progress: {getTripsCount()} / 10</Text>
+                </View>
+                <Text style={{ color: '#00b562', fontWeight: '900', fontSize: 14 }}>+₹200</Text>
+              </View>
+
+              <View style={[styles.incentiveRow, { backgroundColor: theme.cardSecondary }]}>
+                <Text style={{ fontSize: 20, marginRight: 10 }}>⭐</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.incentiveTitle, { color: theme.text }]}>Peak Hours Boost (6 PM - 10 PM)</Text>
+                  <Text style={{ fontSize: 11, color: theme.textMuted }}>1.2x Payout Boost</Text>
+                </View>
+                <Text style={{ color: '#00b562', fontWeight: '900', fontSize: 14 }}>Active</Text>
+              </View>
             </View>
           </View>
-        )}
-      />
+
+          {/* Completed Trips Breakdown List */}
+          <Text style={[styles.sectionTitle, { color: '#00b562', marginTop: 20 }]}>COMPLETED TRIPS HISTORY</Text>
+
+          {historyList.length > 0 ? (
+            <View style={{ gap: 10 }}>
+              {historyList.map((ride: any) => (
+                <View key={ride.id} style={[styles.tripCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <Text style={{ fontSize: 11, color: theme.textMuted }}>
+                      {new Date(ride.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {new Date(ride.createdAt).toLocaleDateString()}
+                    </Text>
+                    <Text style={{ fontSize: 15, fontWeight: '900', color: '#00b562' }}>
+                      +₹{(ride.driverShare || ride.fare || 0).toFixed(2)}
+                    </Text>
+                  </View>
+                  <Text style={[styles.tripAddress, { color: theme.text }]} numberOfLines={1}>
+                    🟢 {ride.pickupAddress || 'Pickup Point'}
+                  </Text>
+                  <Text style={[styles.tripAddress, { color: theme.text, marginTop: 2 }]} numberOfLines={1}>
+                    🔴 {ride.dropoffAddress || 'Drop Location'}
+                  </Text>
+                  {ride.distance ? (
+                    <Text style={{ fontSize: 11, color: theme.textMuted, marginTop: 4 }}>
+                      📏 {(ride.distance).toFixed(1)} km · {ride.vehicleType || 'Ride'}
+                    </Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={[styles.emptyCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <Text style={{ fontSize: 32, marginBottom: 6 }}>⚡</Text>
+              <Text style={[styles.emptyTitle, { color: theme.text }]}>No Completed Trips Yet</Text>
+              <Text style={[styles.emptySub, { color: theme.textMuted }]}>
+                Go online and accept ride requests. Your completed earnings will appear here live.
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#111',
-  },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: '#111',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: '#aaa',
-    marginTop: 10,
-  },
-  topBar: {
+  container: { flex: 1 },
+  centerLoading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  scrollContent: { padding: 16, paddingBottom: 40 },
+  filterContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#222',
-    marginTop: Platform.OS === 'ios' ? 40 : 10,
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 16,
   },
-  topBarTitle: {
-    color: '#ffc107',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  backBtn: {
-    padding: 5,
-  },
-  backBtnText: {
-    color: '#aaa',
-    fontSize: 15,
-    fontWeight: 'bold',
-  },
-  summaryContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 15,
-    gap: 10,
-  },
-  summaryCard: {
+  filterBtn: {
     flex: 1,
-    backgroundColor: '#222',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#333',
+    paddingVertical: 10,
+    borderRadius: 10,
     alignItems: 'center',
   },
-  cardLabel: {
-    color: '#888',
+  filterText: {
+    fontSize: 13,
+  },
+  heroCard: {
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    alignItems: 'center',
+  },
+  heroLabel: {
     fontSize: 11,
-    fontWeight: 'bold',
-    marginBottom: 5,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
-  cardValue: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: 'bold',
+  heroAmount: {
+    fontSize: 36,
+    fontWeight: '900',
+    marginVertical: 4,
   },
-  listContent: {
-    padding: 15,
-    paddingBottom: 40,
+  statsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
   },
-  historyHeader: {
-    color: '#ffc107',
+  statCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  statVal: {
     fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 15,
+    fontWeight: '900',
+  },
+  card: {
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1.5,
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  cardSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  incentiveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+  },
+  incentiveTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1,
+    marginBottom: 10,
   },
   tripCard: {
-    backgroundColor: '#222',
-    borderRadius: 8,
+    padding: 14,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#333',
-    padding: 15,
-    marginBottom: 15,
   },
-  tripHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-    paddingBottom: 8,
-    marginBottom: 8,
+  tripAddress: {
+    fontSize: 12,
+    fontWeight: '600',
   },
-  tripDate: {
-    color: '#aaa',
-    fontSize: 13,
-    fontWeight: 'bold',
-  },
-  payoutText: {
-    color: '#28a745',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  fareLabel: {
-    color: '#666',
-    fontSize: 11,
-  },
-  addressContainer: {
-    gap: 5,
-  },
-  addressText: {
-    color: '#ddd',
-    fontSize: 13,
-  },
-  emptyView: {
-    paddingVertical: 40,
+  emptyCard: {
+    padding: 24,
+    borderRadius: 18,
+    borderWidth: 1,
     alignItems: 'center',
   },
-  emptyText: {
-    color: '#666',
-    fontStyle: 'italic',
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  emptySub: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 16,
   },
 });

@@ -16,6 +16,10 @@ export interface AuthenticatedRequest extends Request {
  * Authentication middleware that extracts, decodes, and verifies a Bearer JWT token.
  */
 export async function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({
@@ -106,6 +110,10 @@ export async function authenticate(req: AuthenticatedRequest, res: Response, nex
  */
 export function requireRole(...allowedRoles: UserRole[]) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (req.method === 'OPTIONS') {
+      return next();
+    }
+
     if (!req.user) {
       return res.status(401).json({
         success: false,

@@ -8,12 +8,29 @@ import {
 } from '../controllers/auth.controller';
 import { authenticate } from '../middlewares/auth.middleware';
 
+import {
+  sendMobileOtp,
+  verifyMobileOtp,
+  sendForgotPasswordOtp,
+  verifyForgotPasswordOtp,
+  resetForgotPassword
+} from '../controllers/driverExtended.controller';
+
 const router = Router();
 
 // Public routes
 router.post('/register/customer', registerCustomer);
 router.post('/register/driver', registerDriver);
 router.post('/login', login);
+
+// Mobile OTP Auth
+router.post('/otp/send-mobile', sendMobileOtp);
+router.post('/otp/verify-mobile', verifyMobileOtp);
+
+// Forgot Password Flow
+router.post('/forgot-password/send-otp', sendForgotPasswordOtp);
+router.post('/forgot-password/verify-otp', verifyForgotPasswordOtp);
+router.post('/forgot-password/reset', resetForgotPassword);
 
 // Protected routes
 router.get('/me', authenticate, getMe);

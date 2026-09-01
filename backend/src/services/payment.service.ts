@@ -1,5 +1,6 @@
-import { PrismaClient, PaymentStatus, RideStatus } from '@prisma/client';
+import { PrismaClient, PaymentStatus, RideStatus, PaymentMethod } from '@prisma/client';
 import { stripe } from '../utils/stripe';
+import { createRazorpayOrder, verifyRazorpaySignature, getRazorpayKeyId } from '../utils/razorpay';
 
 const prisma = new PrismaClient();
 
@@ -258,10 +259,164 @@ export class PaymentService {
         console.error('Failed to cancel Stripe hold:', err.message);
         throw err;
       }
-    } else if (payment.provider === 'CASH' || payment.provider === 'UPI') {
+    } else if (payment.provider === 'CASH' || payment.provider === 'UPI' || payment.provider === 'RAZORPAY') {
       return this.updatePaymentStatus(payment.id, PaymentStatus.REFUNDED);
     }
 
     return null;
+  }
+
+  /**
+   * Create an authoritative Razorpay Order for a Ride.
+   */
+  static async createRazorpayOrder(userId: string, rideId: string) {
+    const ride = await prisma.ride.findUnique({
+      where: { id: rideId },
+      include: { customer: true }
+    });
+
+    if (!ride) {
+      throw new Error('RIDE_NOT_FOUND');
+    }
+
+    if (ride.customer.userId !== userId) {
+      throw new Error('UNAUTHORIZED_RIDE_OWNER');
+    }
+
+    // Create order via Razorpay API
+    const order = await createRazorpayOrder(ride.fare, ride.id, {
+      rideId: ride.id,
+      customerId: ride.customerId,
+      fare: String(ride.fare)
+    });
+
+    // Create or update Payment record in Prisma DB
+    const payment = await prisma.$transaction(async (tx) => {
+      // Clean up previous unsuccessful payments
+      await tx.payment.deleteMany({
+        where: {
+          rideId,
+          status: { in: [PaymentStatus.PENDING, PaymentStatus.FAILED] }
+        }
+      });
+
+      return tx.payment.create({
+        data: {
+          rideId,
+          amount: ride.fare,
+          provider: 'RAZORPAY',
+          paymentMethod: PaymentMethod.CARD,
+          orderId: order.id,
+          transactionId: order.id,
+          status: PaymentStatus.PENDING
+        }
+      });
+    });
+
+    console.log(`\n======================================================`);
+    console.log(`💳 [RAZORPAY ORDER CREATED]`);
+    console.log(`   Ride ID    : ${ride.id}`);
+    console.log(`   Order ID   : ${order.id}`);
+    console.log(`   Amount     : ₹${ride.fare.toFixed(2)} (${order.amount} paise)`);
+    console.log(`======================================================\n`);
+
+    return {
+      paymentId: payment.id,
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      keyId: getRazorpayKeyId(),
+      rideId: ride.id,
+      customerName: ride.customer.name || 'Customer',
+      customerPhone: ride.customer.phone || ''
+    };
+  }
+
+  /**
+   * Verify and confirm a Razorpay payment with signature check, recording transaction in Prisma DB.
+   */
+  static async verifyRazorpayPayment(
+    userId: string,
+    rideId: string,
+    razorpayOrderId: string,
+    razorpayPaymentId: string,
+    razorpaySignature: string
+  ) {
+    const ride = await prisma.ride.findUnique({
+      where: { id: rideId },
+      include: { customer: true }
+    });
+
+    if (!ride) {
+      throw new Error('RIDE_NOT_FOUND');
+    }
+
+    if (ride.customer.userId !== userId) {
+      throw new Error('UNAUTHORIZED_RIDE_OWNER');
+    }
+
+    // Verify HMAC-SHA256 signature
+    const isValid = verifyRazorpaySignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
+    if (!isValid) {
+      console.error(`❌ [Razorpay Invalid Signature] Order: ${razorpayOrderId} | Payment: ${razorpayPaymentId}`);
+      throw new Error('INVALID_RAZORPAY_SIGNATURE');
+    }
+
+    // Update payment record in database atomically
+    const updatedPayment = await prisma.$transaction(async (tx) => {
+      let payment = await tx.payment.findFirst({
+        where: {
+          rideId,
+          orderId: razorpayOrderId
+        }
+      });
+
+      if (!payment) {
+        payment = await tx.payment.findFirst({
+          where: { rideId }
+        });
+      }
+
+      if (payment) {
+        return tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            status: PaymentStatus.COMPLETED,
+            orderId: razorpayOrderId,
+            paymentId: razorpayPaymentId,
+            signature: razorpaySignature,
+            transactionId: razorpayPaymentId,
+            provider: 'RAZORPAY'
+          }
+        });
+      } else {
+        return tx.payment.create({
+          data: {
+            rideId,
+            amount: ride.fare,
+            provider: 'RAZORPAY',
+            orderId: razorpayOrderId,
+            paymentId: razorpayPaymentId,
+            signature: razorpaySignature,
+            transactionId: razorpayPaymentId,
+            status: PaymentStatus.COMPLETED
+          }
+        });
+      }
+    });
+
+    console.log(`\n======================================================`);
+    console.log(`✅ [RAZORPAY PAYMENT COMPLETED & SAVED TO PRISMA DB]`);
+    console.log(`   Ride ID        : ${rideId}`);
+    console.log(`   Order ID       : ${razorpayOrderId}`);
+    console.log(`   Payment ID     : ${razorpayPaymentId}`);
+    console.log(`   Amount         : ₹${ride.fare.toFixed(2)}`);
+    console.log(`   Status in DB   : COMPLETED`);
+    console.log(`======================================================\n`);
+
+    return {
+      success: true,
+      payment: updatedPayment
+    };
   }
 }

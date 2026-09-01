@@ -5,42 +5,97 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert
+  Alert,
+  ScrollView
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
+import { AppButton } from '../components/AppButton';
 
-export function PendingApproval() {
+interface PendingApprovalProps {
+  onNavigate: (screen: string) => void;
+}
+
+export function PendingApproval({ onNavigate }: PendingApprovalProps) {
   const { logout, refreshUser } = useAuth();
+  const { theme, isDark, toggleTheme } = useTheme();
+  const { t } = useLanguage();
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
       await refreshUser();
-    } catch (err: any) {
-      Alert.alert('Sync Failed', 'Could not refresh account status.');
+      Alert.alert('Status Checked', 'Account profile synced. If admin has approved, your dashboard will open automatically.');
+    } catch {
+      Alert.alert('Sync Failed', 'Could not refresh account status. Please try again.');
     } finally {
       setRefreshing(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.badge}>PENDING REVIEW</Text>
-        <Text style={styles.title}>Account Under Review</Text>
-        <Text style={styles.description}>
-          Our operations team is currently validating your documents (License, Vehicle details, and registration plates).
+    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: theme.bg }]}>
+      <View style={styles.topBar}>
+        <TouchableOpacity style={[styles.themeToggle, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={toggleTheme}>
+          <Text style={{ fontSize: 13, color: theme.textSub }}>{isDark ? '☀️ Light' : '🌙 Dark'}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.contentCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View style={styles.iconCircle}>
+          <Text style={{ fontSize: 44 }}>🛡️</Text>
+        </View>
+
+        <Text style={[styles.title, { color: theme.text }]}>
+          {t.accountUnderReview || 'Your account is under review'}
         </Text>
-        <Text style={styles.note}>
-          This process typically takes 24-48 hours. You will receive an alert once your Captain profile is activated.
+        <Text style={[styles.subtitle, { color: theme.textMuted }]}>
+          {t.underReviewSub || "We're reviewing your Captain profile and vehicle details. You'll be notified when your account is approved."}
         </Text>
 
-        <TouchableOpacity style={styles.refreshBtn} onPress={handleRefresh} disabled={refreshing}>
+        {/* Verification Checklist */}
+        <View style={[styles.checklistCard, { backgroundColor: theme.cardSecondary, borderColor: theme.border }]}>
+          <View style={styles.checkRow}>
+            <Text style={[styles.checkMark, { color: '#00b562' }]}>✓</Text>
+            <Text style={[styles.checkText, { color: theme.text }]}>{t.profileCompleted || 'Profile details submitted'}</Text>
+          </View>
+          <View style={styles.checkRow}>
+            <Text style={[styles.checkMark, { color: '#00b562' }]}>✓</Text>
+            <Text style={[styles.checkText, { color: theme.text }]}>Vehicle details registered</Text>
+          </View>
+          <View style={styles.checkRow}>
+            <Text style={[styles.checkMark, { color: '#00b562' }]}>✓</Text>
+            <Text style={[styles.checkText, { color: theme.text }]}>{t.payoutAdded || 'Payout details added'}</Text>
+          </View>
+          <View style={styles.checkRow}>
+            <Text style={[styles.checkMark, { color: '#38bdf8' }]}>◌</Text>
+            <Text style={[styles.checkText, { color: '#38bdf8', fontWeight: '800' }]}>
+              {t.verificationInProgress || 'Verification in progress'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Safety Training Prompt Banner */}
+        <View style={[styles.trainingBanner, { backgroundColor: 'rgba(0, 181, 98, 0.12)', borderColor: '#00b562' }]}>
+          <Text style={[styles.trainingPrompt, { color: theme.text }]}>
+            🎓 {t.startTrainingPrompt || 'While you wait, complete your Captain safety training.'}
+          </Text>
+          <AppButton
+            title={`${t.startTrainingBtn || 'Start Training'} →`}
+            onPress={() => onNavigate('SAFETY_TRAINING')}
+            style={{ marginTop: 12 }}
+          />
+        </View>
+
+        <TouchableOpacity style={[styles.refreshBtn, { backgroundColor: theme.cardSecondary, borderColor: theme.border }]} onPress={handleRefresh} disabled={refreshing}>
           {refreshing ? (
-            <ActivityIndicator color="#000" />
+            <ActivityIndicator color="#00b562" size="small" />
           ) : (
-            <Text style={styles.refreshBtnText}>Check Approval Status</Text>
+            <Text style={[styles.refreshBtnText, { color: '#00b562' }]}>
+              {t.checkStatusBtn || '🔄 Check Approval Status'}
+            </Text>
           )}
         </TouchableOpacity>
 
@@ -48,80 +103,109 @@ export function PendingApproval() {
           <Text style={styles.logoutBtnText}>Log Out</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#111',
+    flexGrow: 1,
     justifyContent: 'center',
-    padding: 24
+    padding: 22,
+    paddingTop: 48,
+    paddingBottom: 40,
   },
-  content: {
-    backgroundColor: '#222',
-    padding: 30,
-    borderRadius: 16,
+  topBar: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    zIndex: 10,
+  },
+  themeToggle: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#333',
+  },
+  contentCard: {
+    padding: 24,
+    borderRadius: 20,
+    borderWidth: 1.5,
     alignItems: 'center',
   },
-  badge: {
-    backgroundColor: 'rgba(255, 193, 7, 0.1)',
-    color: '#ffc107',
-    fontSize: 11,
-    fontWeight: 'bold',
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    marginBottom: 20,
-    letterSpacing: 1
+  iconCircle: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: 'rgba(0, 181, 98, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   title: {
     fontSize: 22,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: '900',
     textAlign: 'center',
-    marginBottom: 15
+    marginBottom: 8,
   },
-  description: {
-    fontSize: 14,
-    color: '#ccc',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 15
-  },
-  note: {
-    fontSize: 12,
-    color: '#888',
+  subtitle: {
+    fontSize: 13,
     textAlign: 'center',
     lineHeight: 18,
-    marginBottom: 30
+    marginBottom: 20,
+  },
+  checklistCard: {
+    width: '100%',
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 12,
+    marginBottom: 20,
+  },
+  checkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  checkMark: {
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  checkText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  trainingBanner: {
+    width: '100%',
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    marginBottom: 16,
+  },
+  trainingPrompt: {
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
+    textAlign: 'center',
   },
   refreshBtn: {
-    backgroundColor: '#ffc107',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
     width: '100%',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   refreshBtnText: {
-    color: '#000',
-    fontWeight: 'bold',
-    fontSize: 15
+    fontSize: 14,
+    fontWeight: '800',
   },
   logoutBtn: {
-    paddingVertical: 12,
-    width: '100%',
-    alignItems: 'center'
+    paddingVertical: 10,
   },
   logoutBtnText: {
-    color: '#ff4444',
-    fontWeight: 'bold',
-    fontSize: 14
-  }
+    color: '#ef4444',
+    fontSize: 13,
+    fontWeight: '700',
+  },
 });
-export default PendingApproval;

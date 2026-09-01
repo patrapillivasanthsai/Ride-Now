@@ -201,6 +201,38 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response) {
           }
         }
       });
+      // Track Online/Offline Duty Sessions
+      if (status !== undefined && status !== driver.status) {
+        if (status === DriverStatus.ONLINE) {
+          const activeSession = await tx.driverDutySession.findFirst({
+            where: { driverId: driver.id, endTime: null }
+          });
+          if (!activeSession) {
+            await tx.driverDutySession.create({
+              data: {
+                driverId: driver.id,
+                startTime: new Date()
+              }
+            });
+          }
+        } else if (status === DriverStatus.OFFLINE) {
+          const activeSessions = await tx.driverDutySession.findMany({
+            where: { driverId: driver.id, endTime: null }
+          });
+          const nowTime = new Date();
+          for (const s of activeSessions) {
+            const dur = Math.max(0, Math.round((nowTime.getTime() - new Date(s.startTime).getTime()) / 1000));
+            await tx.driverDutySession.update({
+              where: { id: s.id },
+              data: {
+                endTime: nowTime,
+                durationSeconds: dur
+              }
+            });
+          }
+        }
+      }
+
       return drv;
     });
 
@@ -536,49 +568,61 @@ export async function getEarnings(req: AuthenticatedRequest, res: Response) {
     }
 
     const now = new Date();
-
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-
-    const tempDate = new Date(now);
-    const dayOfWeek = tempDate.getDay();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dayOfWeek = now.getDay();
     const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    const mondayStart = new Date(tempDate.setDate(tempDate.getDate() - distanceToMonday));
-    mondayStart.setHours(0, 0, 0, 0);
+    const mondayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distanceToMonday);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const completedRides = await prisma.ride.findMany({
       where: {
         driverId: driver.id,
-        status: RideStatus.RIDE_COMPLETED,
-        payments: {
-          some: { status: PaymentStatus.COMPLETED }
-        }
+        status: RideStatus.RIDE_COMPLETED
       },
       select: {
         id: true,
         createdAt: true,
         pickupAddress: true,
         dropoffAddress: true,
-        fare: true
+        fare: true,
+        vehicleType: true,
+        status: true,
+        distance: true,
+        duration: true
       },
       orderBy: { createdAt: 'desc' }
     });
 
     let dailyEarnings = 0;
+    let dailyTrips = 0;
+
     let weeklyEarnings = 0;
+    let weeklyTrips = 0;
+
+    let monthlyEarnings = 0;
+    let monthlyTrips = 0;
+
     let totalEarnings = 0;
+    let totalTrips = completedRides.length;
+
     const commissionRate = 0.80; // 80% driver share
 
     const history = completedRides.map((ride) => {
-      const driverShare = parseFloat((ride.fare * commissionRate).toFixed(2));
+      const driverShare = parseFloat(((ride.fare || 0) * commissionRate).toFixed(2));
       totalEarnings += driverShare;
 
       const rideDate = new Date(ride.createdAt);
       if (rideDate >= todayStart) {
         dailyEarnings += driverShare;
+        dailyTrips += 1;
       }
       if (rideDate >= mondayStart) {
         weeklyEarnings += driverShare;
+        weeklyTrips += 1;
+      }
+      if (rideDate >= monthStart) {
+        monthlyEarnings += driverShare;
+        monthlyTrips += 1;
       }
 
       return {
@@ -587,20 +631,75 @@ export async function getEarnings(req: AuthenticatedRequest, res: Response) {
         pickupAddress: ride.pickupAddress,
         dropoffAddress: ride.dropoffAddress,
         fare: ride.fare,
-        driverShare
+        driverShare,
+        vehicleType: ride.vehicleType,
+        status: ride.status,
+        distance: ride.distance,
+        duration: ride.duration
       };
     });
 
     dailyEarnings = parseFloat(dailyEarnings.toFixed(2));
     weeklyEarnings = parseFloat(weeklyEarnings.toFixed(2));
+    monthlyEarnings = parseFloat(monthlyEarnings.toFixed(2));
     totalEarnings = parseFloat(totalEarnings.toFixed(2));
+
+    const dailyAvgPerTrip = dailyTrips > 0 ? parseFloat((dailyEarnings / dailyTrips).toFixed(2)) : 0;
+    const weeklyAvgPerTrip = weeklyTrips > 0 ? parseFloat((weeklyEarnings / weeklyTrips).toFixed(2)) : 0;
+    const monthlyAvgPerTrip = monthlyTrips > 0 ? parseFloat((monthlyEarnings / monthlyTrips).toFixed(2)) : 0;
+    const averagePerTrip = totalTrips > 0 ? parseFloat((totalEarnings / totalTrips).toFixed(2)) : 0;
+
+    // Real Online Duty Time Calculation
+    const sessions = await prisma.driverDutySession.findMany({
+      where: { driverId: driver.id }
+    });
+
+    let todayOnlineSecs = 0;
+    let weeklyOnlineSecs = 0;
+    let monthlyOnlineSecs = 0;
+
+    const formatDuty = (sec: number) => {
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      return `${h}h ${m < 10 ? '0' : ''}${m}m`;
+    };
+
+    sessions.forEach(s => {
+      let dur = s.durationSeconds || 0;
+      if (!s.endTime) {
+        dur = Math.max(0, Math.round((now.getTime() - new Date(s.startTime).getTime()) / 1000));
+      }
+      const sTime = new Date(s.startTime);
+      if (sTime >= todayStart) todayOnlineSecs += dur;
+      if (sTime >= mondayStart) weeklyOnlineSecs += dur;
+      if (sTime >= monthStart) monthlyOnlineSecs += dur;
+    });
 
     return res.status(200).json({
       success: true,
       data: {
         dailyEarnings,
+        dailyTrips,
+        dailyAvgPerTrip,
+        todayEarnings: dailyEarnings,
+        todayTrips: dailyTrips,
+        todayAvgPerTrip: dailyAvgPerTrip,
+        todayOnlineTime: formatDuty(todayOnlineSecs),
+
         weeklyEarnings,
+        weeklyTrips,
+        weeklyAvgPerTrip,
+        weeklyOnlineTime: formatDuty(weeklyOnlineSecs),
+
+        monthlyEarnings,
+        monthlyTrips,
+        monthlyAvgPerTrip,
+        monthlyOnlineTime: formatDuty(monthlyOnlineSecs),
+
         totalEarnings,
+        totalTrips,
+        completedTrips: totalTrips,
+        averagePerTrip,
         commissionRate,
         history
       }

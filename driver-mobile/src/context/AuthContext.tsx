@@ -43,8 +43,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const handleLogin = async (jwtToken: string, userData: any) => {
-    await AsyncStorage.setItem('token', jwtToken);
-    setToken(jwtToken);
+    if (jwtToken && typeof jwtToken === 'string') {
+      await AsyncStorage.setItem('token', jwtToken);
+      setToken(jwtToken);
+    }
     setUser(userData);
   };
 

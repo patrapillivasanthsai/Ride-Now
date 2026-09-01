@@ -30,3 +30,6 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Android Gradle generated files
+driver-mobile/android/.gradle/

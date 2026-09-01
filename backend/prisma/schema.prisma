@@ -99,6 +99,57 @@ enum AuditAction {
   RATING_RESOLVED
 }
 
+enum DocumentType {
+  DRIVING_LICENSE_FRONT
+  DRIVING_LICENSE_BACK
+  AADHAAR_CARD
+  PAN_CARD
+  VEHICLE_RC
+  VEHICLE_INSURANCE
+  COMMERCIAL_PERMIT
+}
+
+enum DocumentStatus {
+  NOT_STARTED
+  UPLOADED
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum PayoutAccountType {
+  BANK_ACCOUNT
+  UPI
+}
+
+enum WalletTransactionType {
+  TRIP_EARNING
+  BONUS_INCENTIVE
+  WITHDRAWAL
+  ADJUSTMENT
+}
+
+enum WalletTransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum SupportCategory {
+  RIDE_ISSUES
+  PAYMENTS_EARNINGS
+  ACCOUNT_DOCUMENTS
+  WALLET_WITHDRAWALS
+  SAFETY_EMERGENCY
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -171,25 +222,41 @@ model Customer {
 }
 
 model Driver {
-  id            String       @id @default(uuid())
-  userId        String       @unique
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name          String?
-  licenseNumber String?
-  phone         String?
-  isApproved    Boolean      @default(false)
-  isSuspended   Boolean      @default(false)
-  suspendedAt   DateTime?
-  suspendReason String?
-  status        DriverStatus @default(OFFLINE)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id                String       @id @default(uuid())
+  userId            String       @unique
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String?
+  licenseNumber     String?
+  phone             String?
+  dob               DateTime?
+  gender            String?
+  selfieUrl         String?
+  isApproved        Boolean      @default(false)
+  isSuspended       Boolean      @default(false)
+  suspendedAt       DateTime?
+  suspendReason     String?
+  status            DriverStatus @default(OFFLINE)
+  walletBalance     Float        @default(0.0)
+  totalEarnings     Float        @default(0.0)
+  referralCode      String?      @unique
+  referredBy        String?
+  trainingCompleted Boolean      @default(false)
+  trainingProgress  Json?
+  preferredArea     String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
-  vehicle              Vehicle?
-  rides                Ride[]
-  driverLocation       DriverLocation?
-  ratings              Rating[]
-  driverNotifications  DriverNotification[]
+  vehicle             Vehicle?
+  rides               Ride[]
+  driverLocation      DriverLocation?
+  ratings             Rating[]
+  driverNotifications DriverNotification[]
+  declinedRides       RideDeclinedDriver[]
+  documents           DriverDocument[]
+  payoutAccounts      DriverPayoutAccount[]
+  walletTransactions  DriverWalletTransaction[]
+  supportTickets      SupportTicket[]
+  dutySessions        DriverDutySession[]
 }
 
 model Vehicle {
@@ -228,17 +295,33 @@ model Ride {
   timeFare       Float       @default(0.0)
   cancelReason   String?
   cancelledBy    String?
+  otp            String?     @default("1234")
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  statusHistory RideStatusHistory[]
-  payments      Payment[]
-  ratings       Rating[]
+  statusHistory   RideStatusHistory[]
+  payments        Payment[]
+  ratings         Rating[]
+  declinedDrivers RideDeclinedDriver[]
 
   @@index([customerId])
   @@index([driverId])
   @@index([status])
   @@index([createdAt])
+}
+
+model RideDeclinedDriver {
+  id        String   @id @default(uuid())
+  rideId    String
+  ride      Ride     @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  driverId  String
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@unique([rideId, driverId])
+  @@index([rideId])
+  @@index([driverId])
 }
 
 model RideStatusHistory {
@@ -259,14 +342,19 @@ model Payment {
   amount        Float
   status        PaymentStatus @default(PENDING)
   paymentMethod PaymentMethod @default(CARD)
-  provider      String        @default("MOCK")
+  provider      String        @default("MOCK") // RAZORPAY, STRIPE, CASH
   transactionId String?       @unique
+  orderId       String?       // Razorpay Order ID (e.g. order_xxxx)
+  paymentId     String?       // Razorpay Payment ID (e.g. pay_xxxx)
+  signature     String?       // Razorpay HMAC Verification Signature
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   @@index([rideId])
   @@index([paymentMethod])
   @@index([status])
+  @@index([orderId])
+  @@index([paymentId])
 }
 
 model Rating {
@@ -356,4 +444,84 @@ model DriverLocation {
   updatedAt DateTime @updatedAt
 
   @@index([driverId])
+}
+
+model DriverDocument {
+  id           String         @id @default(uuid())
+  driverId     String
+  driver       Driver         @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  type         DocumentType
+  status       DocumentStatus @default(NOT_STARTED)
+  frontUrl     String?
+  backUrl      String?
+  rejectReason String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([driverId, type])
+  @@index([driverId])
+}
+
+model DriverPayoutAccount {
+  id                  String            @id @default(uuid())
+  driverId            String
+  driver              Driver            @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  type                PayoutAccountType @default(BANK_ACCOUNT)
+  accountHolderName   String?
+  bankName            String?
+  accountNumberMasked String?
+  ifscCode            String?
+  upiId               String?
+  isDefault           Boolean           @default(true)
+  isVerified          Boolean           @default(true)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([driverId])
+}
+
+model DriverWalletTransaction {
+  id          String                  @id @default(uuid())
+  driverId    String
+  driver      Driver                  @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  amount      Float
+  type        WalletTransactionType
+  status      WalletTransactionStatus @default(COMPLETED)
+  description String
+  referenceId String?
+  createdAt   DateTime                @default(now())
+
+  @@index([driverId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model SupportTicket {
+  id          String              @id @default(uuid())
+  userId      String?
+  driverId    String?
+  driver      Driver?             @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  category    SupportCategory     @default(RIDE_ISSUES)
+  subject     String
+  message     String
+  status      SupportTicketStatus @default(OPEN)
+  isEmergency Boolean             @default(false)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([driverId])
+  @@index([status])
+}
+
+model DriverDutySession {
+  id              String    @id @default(uuid())
+  driverId        String
+  driver          Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  startTime       DateTime  @default(now())
+  endTime         DateTime?
+  durationSeconds Int       @default(0)
+  createdAt       DateTime  @default(now())
+
+  @@index([driverId])
+  @@index([startTime])
 }

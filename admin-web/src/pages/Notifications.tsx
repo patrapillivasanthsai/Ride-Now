@@ -1,133 +1,288 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
+import { useTheme } from '../context/ThemeContext';
 
-const inputStyle: React.CSSProperties = { width: '100%', padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', boxSizing: 'border-box', backgroundColor: '#fff', color: '#0f172a', outline: 'none' };
-const labelStyle: React.CSSProperties = { display: 'block', marginBottom: '5px', fontSize: '12px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' };
+const TYPE_ICONS: Record<string, string> = {
+  SYSTEM: '⚙️ System Alert',
+  OFFER: '🎁 Offer & Promo',
+  RIDE_UPDATE: '🚖 Ride Update',
+  PAYMENT: '💳 Payment Notification',
+  APPROVAL: '✅ Approval Notice',
+  SAFETY: '🚨 Safety Alert',
+  BROADCAST: '📢 Public Broadcast',
+};
 
 export const Notifications: React.FC = () => {
-  const [form, setForm] = useState({ title: '', body: '', type: 'SYSTEM', targetRole: 'ALL' });
-  const [sending, setSending] = useState(false);
-  const [sendSuccess, setSendSuccess] = useState<string | null>(null);
-  const [sendError, setSendError] = useState<string | null>(null);
+  const { theme } = useTheme();
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showComposeModal, setShowComposeModal] = useState(false);
+  const [form, setForm] = useState({
+    title: '',
+    body: '',
+    type: 'SYSTEM',
+    targetRole: 'ALL',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  const [history, setHistory] = useState<any[]>([]);
-  const [histLoading, setHistLoading] = useState(true);
-  const [histError, setHistError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [meta, setMeta] = useState<any>(null);
-
-  const loadHistory = (p = 1) => {
-    setHistLoading(true); setHistError(null);
-    api.getAdminNotifications(p)
-      .then((d: any) => { setHistory(d.data || d); setMeta(d.meta || null); })
-      .catch((e: any) => setHistError(e.message || 'Failed to load notifications'))
-      .finally(() => setHistLoading(false));
+  const loadNotifications = () => {
+    setLoading(true);
+    setError(null);
+    api.getAdminNotifications()
+      .then((d: any) => setNotifications(d.data || d))
+      .catch(e => setError(e.message || 'Failed to load notifications'))
+      .finally(() => setLoading(false));
   };
 
-  useEffect(() => { loadHistory(page); }, [page]);
+  useEffect(() => { loadNotifications(); }, []);
 
-  const handleSend = async (e: React.FormEvent) => {
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3500);
+  };
+
+  const handleSendNotification = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title.trim() || !form.body.trim()) { setSendError('Title and body are required.'); return; }
-    setSending(true); setSendSuccess(null); setSendError(null);
+    if (!form.title.trim() || !form.body.trim()) return;
+    setSubmitting(true);
     try {
-      await api.createNotification(form as any);
-      setSendSuccess('✅ Notification sent successfully!');
+      await api.createNotification(form);
+      showToast(`Notification broadcasted to ${form.targetRole.replace(/_/g, ' ')}!`);
       setForm({ title: '', body: '', type: 'SYSTEM', targetRole: 'ALL' });
-      loadHistory(1); setPage(1);
+      setShowComposeModal(false);
+      loadNotifications();
     } catch (e: any) {
-      setSendError(e.message || 'Failed to send notification');
+      alert(e.message || 'Failed to send notification');
     } finally {
-      setSending(false);
+      setSubmitting(false);
     }
   };
 
-  const targetLabel = (role: string) => ({ ALL: '🌐 Everyone', CUSTOMER_ONLY: '👥 Customers', DRIVER_ONLY: '🪪 Drivers' }[role] || role);
-  const typeIcon = (t: string) => ({ SYSTEM: '⚙️', OFFER: '🎁', BROADCAST: '📢', SAFETY: '🚨', RIDE_UPDATE: '🚖', APPROVAL: '✅' }[t] || '📬');
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '10px 14px',
+    border: `1.5px solid ${theme.border}`,
+    borderRadius: '8px',
+    fontSize: '13.5px',
+    boxSizing: 'border-box',
+    backgroundColor: theme.inputBg,
+    color: theme.text,
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    marginBottom: '6px',
+    fontSize: '12px',
+    fontWeight: '700',
+    color: theme.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em'
+  };
 
   return (
     <div>
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ margin: 0, fontSize: '26px', fontWeight: '800', color: '#0f172a' }}>Notifications</h1>
-        <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '14px' }}>Broadcast messages to customers, drivers, or everyone.</p>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '24px', alignItems: 'start' }}>
-        {/* Compose Panel */}
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '24px', position: 'sticky', top: '20px' }}>
-          <h3 style={{ margin: '0 0 20px 0', fontSize: '15px', fontWeight: '700', color: '#0f172a' }}>📬 Send Notification</h3>
-
-          {sendError && <div style={{ backgroundColor: '#fff5f5', color: '#e53e3e', borderLeft: '4px solid #ef4444', padding: '10px 14px', borderRadius: '6px', fontSize: '13px', marginBottom: '16px' }}>⚠️ {sendError}</div>}
-          {sendSuccess && <div style={{ backgroundColor: '#f0fdf4', color: '#15803d', borderLeft: '4px solid #00b562', padding: '10px 14px', borderRadius: '6px', fontSize: '13px', marginBottom: '16px' }}>{sendSuccess}</div>}
-
-          <form onSubmit={handleSend} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div>
-              <label style={labelStyle}>Title</label>
-              <input style={inputStyle} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Notification title" required />
-            </div>
-            <div>
-              <label style={labelStyle}>Message</label>
-              <textarea style={{ ...inputStyle, height: '90px', resize: 'vertical' } as any} value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} placeholder="Write your message..." required />
-            </div>
-            <div>
-              <label style={labelStyle}>Type</label>
-              <select style={inputStyle} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-                <option value="SYSTEM">⚙️ System</option>
-                <option value="BROADCAST">📢 Broadcast</option>
-                <option value="OFFER">🎁 Offer</option>
-                <option value="SAFETY">🚨 Safety Alert</option>
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle}>Target Audience</label>
-              <select style={inputStyle} value={form.targetRole} onChange={e => setForm(f => ({ ...f, targetRole: e.target.value }))}>
-                <option value="ALL">🌐 Everyone (Customers + Drivers)</option>
-                <option value="CUSTOMER_ONLY">👥 Customers Only</option>
-                <option value="DRIVER_ONLY">🪪 Drivers Only</option>
-              </select>
-            </div>
-            <button type="submit" disabled={sending}
-              style={{ padding: '11px', backgroundColor: '#00b562', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '14px', cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.7 : 1 }}>
-              {sending ? 'Sending...' : '🚀 Send Now'}
-            </button>
-          </form>
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '24px',
+          zIndex: 9999,
+          backgroundColor: '#00b562',
+          color: '#fff',
+          padding: '12px 20px',
+          borderRadius: '10px',
+          fontWeight: '700',
+          fontSize: '13.5px',
+          boxShadow: '0 8px 24px rgba(0,181,98,0.4)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <span>✅</span>
+          <span>{toastMsg}</span>
         </div>
+      )}
 
-        {/* History Panel */}
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: '700', color: '#0f172a' }}>📋 Notification History</h3>
-          {histError && <div style={{ backgroundColor: '#fff5f5', color: '#e53e3e', borderLeft: '4px solid #ef4444', padding: '12px 16px', borderRadius: '8px', marginBottom: '14px', fontSize: '13px' }}>⚠️ {histError}</div>}
-          {histLoading && <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>Loading history...</div>}
-          {!histLoading && history.length === 0 && <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px' }}>No notifications sent yet.</div>}
-          {!histLoading && history.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {history.map((n: any) => (
-                <div key={n.id} style={{ backgroundColor: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0', padding: '14px 18px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: '700', fontSize: '14px', color: '#0f172a' }}>{typeIcon(n.type || 'SYSTEM')} {n.title}</div>
-                      <div style={{ color: '#64748b', fontSize: '13px', marginTop: '3px' }}>{n.body}</div>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>{new Date(n.createdAt).toLocaleDateString()}</div>
-                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>{targetLabel(n.targetRole || 'CUSTOMER_ONLY')}</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {meta && meta.totalPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '16px' }}>
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#fff', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: '13px', color: '#475569' }}>← Prev</button>
-              <span style={{ padding: '7px 14px', fontSize: '13px', color: '#64748b' }}>Page {page} of {meta.totalPages}</span>
-              <button onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))} disabled={page === meta.totalPages}
-                style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#fff', cursor: page === meta.totalPages ? 'not-allowed' : 'pointer', fontSize: '13px', color: '#475569' }}>Next →</button>
-            </div>
-          )}
+          <h1 style={{ margin: 0, fontSize: '26px', fontWeight: '800', color: theme.text }}>Platform Notifications & Broadcasts</h1>
+          <p style={{ margin: '4px 0 0', color: theme.textMuted, fontSize: '13.5px' }}>
+            Send real-time alerts, safety notices, and updates targeted to Customers, Drivers, or All users.
+          </p>
         </div>
+        <button
+          onClick={() => setShowComposeModal(true)}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: '#00b562',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '9px',
+            fontWeight: '800',
+            fontSize: '13.5px',
+            cursor: 'pointer',
+            boxShadow: '0 4px 14px rgba(0,181,98,0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+        >
+          <span>🔔</span> Send Notification
+        </button>
       </div>
+
+      {/* Compose Notification Modal */}
+      {showComposeModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(3px)' }}>
+          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', padding: '28px', width: '500px', maxWidth: '95vw', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', border: `1px solid ${theme.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: theme.text }}>🔔 Send Broadcast / Notification</h3>
+              <button onClick={() => setShowComposeModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', color: theme.textMuted, cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <form onSubmit={handleSendNotification} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={labelStyle}>Target Audience</label>
+                <select
+                  style={inputStyle}
+                  value={form.targetRole}
+                  onChange={e => setForm({ ...form, targetRole: e.target.value })}
+                >
+                  <option value="CUSTOMER_ONLY">👥 Customers Only (Delivered to Customer App / Web)</option>
+                  <option value="DRIVER_ONLY">🪪 Captains / Drivers Only (Delivered to Driver Mobile)</option>
+                  <option value="ADMIN_ONLY">🛡️ Admin & Staff Only</option>
+                  <option value="ALL">🌐 All Users (Customers & Drivers)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={labelStyle}>Notification Category</label>
+                <select
+                  style={inputStyle}
+                  value={form.type}
+                  onChange={e => setForm({ ...form, type: e.target.value })}
+                >
+                  <option value="SYSTEM">⚙️ System Alert / Maintenance</option>
+                  <option value="OFFER">🎁 Offer & Promotional Campaign</option>
+                  <option value="RIDE_UPDATE">🚖 Ride Dispatch & Operational Update</option>
+                  <option value="SAFETY">🚨 Safety & Emergency Alert</option>
+                  <option value="BROADCAST">📢 General Platform Broadcast</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={labelStyle}>Notification Title</label>
+                <input
+                  style={inputStyle}
+                  value={form.title}
+                  onChange={e => setForm({ ...form, title: e.target.value })}
+                  placeholder="e.g. Peak Hour Bonus Active! ⚡"
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Message Body</label>
+                <textarea
+                  rows={3}
+                  style={{ ...inputStyle, resize: 'vertical' }}
+                  value={form.body}
+                  onChange={e => setForm({ ...form, body: e.target.value })}
+                  placeholder="Write message details for the targeted users..."
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  style={{ flex: 1, padding: '12px', backgroundColor: '#00b562', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '800', fontSize: '13.5px', cursor: submitting ? 'not-allowed' : 'pointer' }}
+                >
+                  {submitting ? 'Broadcasting...' : '🚀 Broadcast Now'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowComposeModal(false)}
+                  style={{ flex: 1, padding: '12px', backgroundColor: theme.cardBgSecondary, color: theme.text, border: `1px solid ${theme.border}`, borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444', borderLeft: '4px solid #ef4444', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>
+          ⚠️ {error}
+        </div>
+      )}
+
+      {/* Notifications Table */}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '60px', color: theme.textMuted }}>Loading notifications...</div>
+      ) : notifications.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px', color: theme.textMuted, backgroundColor: theme.cardBg, borderRadius: '14px', border: `1px solid ${theme.border}` }}>
+          🔔 No notifications sent yet. Click "Send Notification" to broadcast your first message.
+        </div>
+      ) : (
+        <div style={{ backgroundColor: theme.cardBg, borderRadius: '14px', border: `1px solid ${theme.border}`, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ backgroundColor: theme.tableHeaderBg, borderBottom: `1px solid ${theme.border}` }}>
+                  {['Target Audience', 'Type', 'Title', 'Message Body', 'Sent Date'].map(h => (
+                    <th key={h} style={{ padding: '12px 16px', textAlign: 'left', color: theme.textMuted, fontWeight: '700', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {notifications.map((n: any) => (
+                  <tr
+                    key={n.id}
+                    style={{ borderBottom: `1px solid ${theme.borderLight}` }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = theme.tableRowHover}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <td style={{ padding: '14px 16px' }}>
+                      <span style={{
+                        padding: '4px 10px',
+                        borderRadius: '12px',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        color: n.targetRole === 'CUSTOMER_ONLY' ? '#3b82f6' : n.targetRole === 'DRIVER_ONLY' ? '#00b562' : '#8b5cf6',
+                        backgroundColor: n.targetRole === 'CUSTOMER_ONLY' ? 'rgba(59,130,246,0.1)' : n.targetRole === 'DRIVER_ONLY' ? 'rgba(0,181,98,0.1)' : 'rgba(139,92,246,0.1)'
+                      }}>
+                        {n.targetRole?.replace(/_/g, ' ') || 'ALL'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '14px 16px', color: theme.text, fontWeight: '600' }}>
+                      {TYPE_ICONS[n.type] || n.type}
+                    </td>
+                    <td style={{ padding: '14px 16px', fontWeight: '700', color: theme.text }}>
+                      {n.title}
+                    </td>
+                    <td style={{ padding: '14px 16px', color: theme.textMuted, maxWidth: '340px' }}>
+                      {n.body}
+                    </td>
+                    <td style={{ padding: '14px 16px', color: theme.textMuted, fontSize: '12px' }}>
+                      {new Date(n.createdAt).toLocaleDateString()} {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

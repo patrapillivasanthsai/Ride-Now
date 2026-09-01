@@ -350,8 +350,10 @@ export async function getRideDetail(req: AuthenticatedRequest, res: Response) {
         driver: {
           select: {
             id: true,
+            name: true,
             phone: true,
             vehicle: true,
+            driverLocation: true,
             user: {
               select: { email: true }
             }

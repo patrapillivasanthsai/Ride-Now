@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   getStats,
-  getDrivers, approveDriver, rejectDriver, suspendDriver, activateDriver,
+  getDrivers, getDriverDetail, approveDriver, rejectDriver, suspendDriver, activateDriver, deleteDriver,
   getRides, getRideDetail, getEligibleDrivers, assignDriver, adminCancelRide,
   getPricing, updatePricing,
   getAdminPayments, getAdminPaymentDetail,
@@ -28,10 +28,16 @@ router.get('/stats', getStats);
 
 // ── Drivers ──────────────────────────────────────────────────────────────────
 router.get('/drivers', getDrivers);
+router.get('/drivers/:id', getDriverDetail);
 router.patch('/drivers/:id/approve', approveDriver);
+router.post('/drivers/:id/approve', approveDriver);
 router.patch('/drivers/:id/reject', rejectDriver);
+router.post('/drivers/:id/reject', rejectDriver);
 router.patch('/drivers/:id/suspend', suspendDriver);
+router.post('/drivers/:id/suspend', suspendDriver);
 router.patch('/drivers/:id/activate', activateDriver);
+router.post('/drivers/:id/activate', activateDriver);
+router.delete('/drivers/:id', deleteDriver);
 
 // ── Rides ─────────────────────────────────────────────────────────────────────
 router.get('/rides', getRides);
@@ -43,6 +49,7 @@ router.post('/rides/:id/cancel', adminCancelRide);
 // ── Pricing ───────────────────────────────────────────────────────────────────
 router.get('/pricing', getPricing);
 router.put('/pricing/:vehicleType', updatePricing);
+router.post('/pricing/:vehicleType', updatePricing);
 
 // ── Payments ──────────────────────────────────────────────────────────────────
 router.get('/payments', getAdminPayments);
@@ -52,7 +59,9 @@ router.get('/payments/:id', getAdminPaymentDetail);
 router.get('/customers', getCustomers);
 router.get('/customers/:id', getCustomerDetail);
 router.patch('/customers/:id/suspend', suspendCustomer);
+router.post('/customers/:id/suspend', suspendCustomer);
 router.patch('/customers/:id/reactivate', reactivateCustomer);
+router.post('/customers/:id/reactivate', reactivateCustomer);
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
 router.get('/analytics', getAnalytics);
@@ -60,7 +69,9 @@ router.get('/analytics', getAnalytics);
 // ── Ratings ───────────────────────────────────────────────────────────────────
 router.get('/ratings', getRatings);
 router.patch('/ratings/:id/flag', flagRating);
+router.post('/ratings/:id/flag', flagRating);
 router.patch('/ratings/:id/resolve', resolveRating);
+router.post('/ratings/:id/resolve', resolveRating);
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 router.get('/notifications', getAdminNotifications);

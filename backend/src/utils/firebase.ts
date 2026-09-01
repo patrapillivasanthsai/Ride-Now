@@ -49,7 +49,35 @@ export async function sendPushNotification(
     await admin.messaging().send({
       token,
       notification: { title, body },
-      data: data ? { payload: JSON.stringify(data) } : undefined
+      data: data ? { payload: JSON.stringify(data) } : undefined,
+      android: {
+        priority: 'high',
+        notification: {
+          sound: 'default',
+          channelId: 'ridenow_ride_alerts',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+          priority: 'max'
+        }
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default',
+            badge: 1,
+            soundName: 'default'
+          }
+        }
+      },
+      webpush: {
+        headers: {
+          Urgency: 'high'
+        },
+        notification: {
+          requireInteraction: true,
+          vibrate: [200, 100, 200]
+        }
+      }
     });
     return true;
   } catch (error) {

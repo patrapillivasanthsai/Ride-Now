@@ -1,184 +1,296 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
+import { useTheme } from '../context/ThemeContext';
 
 const STATUS_COLORS: Record<string, { color: string; bg: string }> = {
-  COMPLETED: { color: '#059669', bg: '#ecfdf5' },
-  PENDING: { color: '#d97706', bg: '#fffbeb' },
-  FAILED: { color: '#ef4444', bg: '#fff5f5' },
-  REFUNDED: { color: '#7c3aed', bg: '#f5f3ff' },
+  COMPLETED: { color: '#059669', bg: 'rgba(5,150,105,0.12)' },
+  PENDING: { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  FAILED: { color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+  REFUNDED: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' },
+  AUTHORIZED: { color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
 };
 
-const paymentMethodIcon = (m: string) => ({ CASH: '💵', UPI: '📱', CARD: '💳', STRIPE: '💳' }[m] || '💳');
-
-const statusBadge = (status: string) => {
-  const s = STATUS_COLORS[status] || { color: '#64748b', bg: '#f1f5f9' };
-  return <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', color: s.color, backgroundColor: s.bg }}>{status}</span>;
+const METHOD_ICONS: Record<string, string> = {
+  UPI: '📱 UPI',
+  CASH: '💵 Cash',
+  CARD: '💳 Card',
 };
 
 export const Payments: React.FC = () => {
+  const { theme } = useTheme();
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPayment, setSelectedPayment] = useState<any>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-
   const [statusFilter, setStatusFilter] = useState('');
   const [methodFilter, setMethodFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
   const [meta, setMeta] = useState<any>(null);
+  const [selectedPayment, setSelectedPayment] = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 900);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 900);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const load = (p = 1) => {
-    setLoading(true); setError(null);
-    api.getPayments({ status: statusFilter || undefined, paymentMethod: methodFilter || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, page: p })
-      .then((d: any) => { setPayments(d.data || d); setMeta(d.meta || null); })
-      .catch(e => setError(e.message || 'Failed to load payments'))
+    setLoading(true);
+    setError(null);
+    api.getPayments({
+      status: statusFilter || undefined,
+      paymentMethod: methodFilter || undefined,
+      page: p
+    })
+      .then((d: any) => {
+        setPayments(d.data || d);
+        setMeta(d.meta || null);
+      })
+      .catch((e: any) => setError(e.message || 'Failed to load payments'))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => { load(page); }, [statusFilter, methodFilter, page]);
 
-  const applyDateFilter = () => { setPage(1); load(1); };
-
-  const handleInspect = async (id: string) => {
-    setLoadingDetail(true);
-    try { const d = await api.getPaymentDetail(id); setSelectedPayment(d); }
-    catch (e: any) { alert(e.message); }
-    finally { setLoadingDetail(false); }
+  const openDetail = async (id: string) => {
+    setDetailLoading(true);
+    try {
+      const d = await api.getPaymentDetail(id);
+      setSelectedPayment(d);
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
-  // Aggregate stats from loaded payments
-  const totalRevenue = payments.filter(p => p.status === 'COMPLETED').reduce((sum, p) => sum + p.amount, 0);
-  const failedCount = payments.filter(p => p.status === 'FAILED').length;
-  const pendingCount = payments.filter(p => p.status === 'PENDING').length;
+  const totalVolume = payments.reduce((acc, p) => acc + (p.amount || 0), 0);
+  const completedVolume = payments.filter(p => p.status === 'COMPLETED').reduce((acc, p) => acc + (p.amount || 0), 0);
 
   return (
     <div>
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ margin: 0, fontSize: '26px', fontWeight: '800', color: '#0f172a' }}>Payments</h1>
-        <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '14px' }}>Transaction ledger and payment monitoring. {meta ? `${meta.total} total.` : ''}</p>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px', flexWrap: 'wrap', gap: '12px' }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: '26px', fontWeight: '800', color: theme.text }}>Financial Transactions & Payments</h1>
+          <p style={{ margin: '4px 0 0', color: theme.textMuted, fontSize: '13.5px' }}>
+            Monitor UPI, Cash, and Card ride transactions, gateway statuses, and settlements (All amounts in ₹ INR).
+          </p>
+        </div>
       </div>
 
-      {/* Stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
-        {[
-          { label: 'Revenue (this page)', value: `₹${totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, color: '#00b562', icon: '💰' },
-          { label: 'Failed Payments', value: String(failedCount), color: '#ef4444', icon: '❌' },
-          { label: 'Pending', value: String(pendingCount), color: '#f59e0b', icon: '⏳' },
-        ].map(s => (
-          <div key={s.label} style={{ backgroundColor: '#fff', borderRadius: '10px', border: `1px solid #e2e8f0`, padding: '16px 20px', borderLeft: `4px solid ${s.color}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: '22px', fontWeight: '800', color: '#0f172a' }}>{s.value}</div>
-                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px' }}>{s.label}</div>
-              </div>
-              <span style={{ fontSize: '24px' }}>{s.icon}</span>
-            </div>
+      {/* Payment Metrics Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+        <div style={{ backgroundColor: theme.cardBg, borderRadius: '12px', border: `1px solid ${theme.border}`, padding: '18px', borderLeft: '4px solid #00b562' }}>
+          <div style={{ fontSize: '11px', color: theme.textMuted, fontWeight: '700', textTransform: 'uppercase' }}>Gross Volume</div>
+          <div style={{ fontSize: '24px', fontWeight: '800', color: theme.text, marginTop: '4px' }}>
+            ₹{totalVolume.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
           </div>
-        ))}
+          <div style={{ fontSize: '11px', color: theme.textMuted, marginTop: '2px' }}>Total transaction value</div>
+        </div>
+
+        <div style={{ backgroundColor: theme.cardBg, borderRadius: '12px', border: `1px solid ${theme.border}`, padding: '18px', borderLeft: '4px solid #3b82f6' }}>
+          <div style={{ fontSize: '11px', color: theme.textMuted, fontWeight: '700', textTransform: 'uppercase' }}>Settled Volume</div>
+          <div style={{ fontSize: '24px', fontWeight: '800', color: '#00b562', marginTop: '4px' }}>
+            ₹{completedVolume.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+          </div>
+          <div style={{ fontSize: '11px', color: theme.textMuted, marginTop: '2px' }}>Completed payments</div>
+        </div>
+
+        <div style={{ backgroundColor: theme.cardBg, borderRadius: '12px', border: `1px solid ${theme.border}`, padding: '18px', borderLeft: '4px solid #8b5cf6' }}>
+          <div style={{ fontSize: '11px', color: theme.textMuted, fontWeight: '700', textTransform: 'uppercase' }}>Total Transactions</div>
+          <div style={{ fontSize: '24px', fontWeight: '800', color: theme.text, marginTop: '4px' }}>
+            {meta?.total ?? payments.length}
+          </div>
+          <div style={{ fontSize: '11px', color: theme.textMuted, marginTop: '2px' }}>Across all payment gateways</div>
+        </div>
       </div>
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '18px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-          style={{ padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', backgroundColor: '#fff', color: '#0f172a' }}>
-          <option value="">All Statuses</option>
-          <option value="COMPLETED">✅ Completed</option>
+        <select
+          value={statusFilter}
+          onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+          style={{ padding: '10px 14px', border: `1.5px solid ${theme.border}`, borderRadius: '9px', fontSize: '13px', backgroundColor: theme.inputBg, color: theme.text, minWidth: '180px' }}
+        >
+          <option value="">All Payment Statuses</option>
+          <option value="COMPLETED">✅ Completed / Successful</option>
           <option value="PENDING">⏳ Pending</option>
           <option value="FAILED">❌ Failed</option>
-          <option value="REFUNDED">🔄 Refunded</option>
+          <option value="REFUNDED">↩️ Refunded</option>
         </select>
-        <select value={methodFilter} onChange={e => { setMethodFilter(e.target.value); setPage(1); }}
-          style={{ padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', backgroundColor: '#fff', color: '#0f172a' }}>
-          <option value="">All Methods</option>
-          <option value="CASH">💵 Cash</option>
-          <option value="UPI">📱 UPI</option>
-          <option value="CARD">💳 Card</option>
+
+        <select
+          value={methodFilter}
+          onChange={e => { setMethodFilter(e.target.value); setPage(1); }}
+          style={{ padding: '10px 14px', border: `1.5px solid ${theme.border}`, borderRadius: '9px', fontSize: '13px', backgroundColor: theme.inputBg, color: theme.text, minWidth: '160px' }}
+        >
+          <option value="">All Payment Methods</option>
+          <option value="UPI">📱 UPI Payments</option>
+          <option value="CASH">💵 Cash Payments</option>
+          <option value="CARD">💳 Card Payments</option>
         </select>
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          style={{ padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', backgroundColor: '#fff', color: '#0f172a' }} />
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          style={{ padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', backgroundColor: '#fff', color: '#0f172a' }} />
-        <button onClick={applyDateFilter} style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Apply</button>
-        {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); load(1); }} style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#fff', color: '#64748b', fontSize: '13px', cursor: 'pointer' }}>Clear Dates</button>}
       </div>
 
-      {error && <div style={{ backgroundColor: '#fff5f5', color: '#e53e3e', borderLeft: '4px solid #ef4444', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>⚠️ {error}</div>}
+      {error && (
+        <div style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444', borderLeft: '4px solid #ef4444', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>
+          ⚠️ {error}
+        </div>
+      )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: selectedPayment ? '1fr 340px' : '1fr', gap: '20px', alignItems: 'start' }}>
+      {/* Payments Table + Drawer */}
+      <div style={{ display: 'grid', gridTemplateColumns: (!isMobile && selectedPayment) ? '1fr 380px' : '1fr', gap: '20px', alignItems: 'start' }}>
         <div>
-          {loading ? <div style={{ textAlign: 'center', padding: '48px', color: '#94a3b8' }}>Loading payments...</div> : (
-            <div style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-              {payments.length === 0
-                ? <div style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>No payment records found.</div>
-                : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '60px', color: theme.textMuted }}>Loading financial transactions...</div>
+          ) : (
+            <div style={{ backgroundColor: theme.cardBg, borderRadius: '14px', border: `1px solid ${theme.border}`, overflow: 'hidden' }}>
+              {payments.length === 0 ? (
+                <div style={{ padding: '60px', textAlign: 'center', color: theme.textMuted, fontSize: '14px' }}>
+                  No payment transactions found matching filters.
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                  <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
-                      <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
-                        {['Amount', 'Method', 'Status', 'Customer', 'Date', 'Detail'].map(h => (
-                          <th key={h} style={{ padding: '11px 14px', textAlign: 'left', color: '#475569', fontWeight: '700', fontSize: '12px' }}>{h}</th>
+                      <tr style={{ backgroundColor: theme.tableHeaderBg, borderBottom: `1px solid ${theme.border}` }}>
+                        {['Tx ID / Ride', 'Customer', 'Captain / Driver', 'Amount (₹)', 'Method', 'Status', 'Date'].map(h => (
+                          <th key={h} style={{ padding: '12px 16px', textAlign: 'left', color: theme.textMuted, fontWeight: '700', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            {h}
+                          </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {payments.map((p: any) => (
-                        <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: selectedPayment?.id === p.id ? '#f8faff' : '#fff' }}>
-                          <td style={{ padding: '12px 14px', fontWeight: '800', fontSize: '15px', color: '#0f172a' }}>₹{p.amount?.toFixed(2)}</td>
-                          <td style={{ padding: '12px 14px', color: '#334155' }}>{paymentMethodIcon(p.paymentMethod || p.provider)} {p.paymentMethod || p.provider}</td>
-                          <td style={{ padding: '12px 14px' }}>{statusBadge(p.status)}</td>
-                          <td style={{ padding: '12px 14px', color: '#475569' }}>{p.ride?.customer?.name || '—'}</td>
-                          <td style={{ padding: '12px 14px', color: '#94a3b8', fontSize: '12px' }}>{new Date(p.createdAt).toLocaleDateString()}</td>
-                          <td style={{ padding: '12px 14px' }}>
-                            <button onClick={() => handleInspect(p.id)} style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', backgroundColor: '#f1f5f9', color: '#0f172a', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>
-                              {loadingDetail ? '...' : 'Inspect →'}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {payments.map((p: any) => {
+                        const isSelected = selectedPayment?.id === p.id;
+                        const s = STATUS_COLORS[p.status] || { color: theme.textMuted, bg: theme.badgeBg };
+                        return (
+                          <tr
+                            key={p.id}
+                            style={{ borderBottom: `1px solid ${theme.borderLight}`, cursor: 'pointer', backgroundColor: isSelected ? theme.primaryBg : 'transparent' }}
+                            onClick={() => openDetail(p.id)}
+                            onMouseEnter={e => { if (!isSelected) e.currentTarget.style.backgroundColor = theme.tableRowHover; }}
+                            onMouseLeave={e => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                          >
+                            <td style={{ padding: '14px 16px', color: theme.text }}>
+                              <div style={{ fontWeight: '700', fontFamily: 'monospace', fontSize: '12px' }}>
+                                {p.transactionId || `#${p.id.slice(0, 8)}`}
+                              </div>
+                              <div style={{ fontSize: '11px', color: theme.textMuted }}>
+                                Ride: #{p.ride?.id?.slice(0, 8) || p.rideId?.slice(0, 8)}
+                              </div>
+                            </td>
+                            <td style={{ padding: '14px 16px', color: theme.text }}>
+                              <div style={{ fontWeight: '600' }}>{p.ride?.customer?.name || 'Customer'}</div>
+                              <div style={{ fontSize: '11px', color: theme.textMuted }}>{p.ride?.customer?.phone || '—'}</div>
+                            </td>
+                            <td style={{ padding: '14px 16px', color: theme.text }}>
+                              <div style={{ fontWeight: '600' }}>{p.ride?.driver?.name || <em style={{ color: theme.textMuted }}>None</em>}</div>
+                            </td>
+                            <td style={{ padding: '14px 16px', fontWeight: '800', color: theme.text, fontSize: '14px' }}>
+                              ₹{p.amount?.toFixed(2)}
+                            </td>
+                            <td style={{ padding: '14px 16px', color: theme.text, fontWeight: '600' }}>
+                              {METHOD_ICONS[p.paymentMethod] || p.paymentMethod}
+                            </td>
+                            <td style={{ padding: '14px 16px' }}>
+                              <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', color: s.color, backgroundColor: s.bg }}>
+                                {p.status}
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 16px', color: theme.textMuted, fontSize: '12px' }}>
+                              {new Date(p.createdAt).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
-                )}
+                </div>
+              )}
             </div>
           )}
 
           {meta && meta.totalPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '16px' }}>
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#fff', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: '13px', color: '#475569' }}>← Prev</button>
-              <span style={{ padding: '7px 14px', fontSize: '13px', color: '#64748b' }}>Page {page} of {meta.totalPages}</span>
-              <button onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))} disabled={page === meta.totalPages}
-                style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#fff', cursor: page === meta.totalPages ? 'not-allowed' : 'pointer', fontSize: '13px', color: '#475569' }}>Next →</button>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '18px' }}>
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                style={{ padding: '7px 14px', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: '13px', color: theme.text }}
+              >
+                ← Prev
+              </button>
+              <span style={{ padding: '7px 14px', fontSize: '13px', color: theme.textMuted }}>
+                Page {page} of {meta.totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))}
+                disabled={page === meta.totalPages}
+                style={{ padding: '7px 14px', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg, cursor: page === meta.totalPages ? 'not-allowed' : 'pointer', fontSize: '13px', color: theme.text }}
+              >
+                Next →
+              </button>
             </div>
           )}
         </div>
 
-        {/* Detail Drawer */}
+        {/* Side Payment Detail Drawer */}
         {selectedPayment && (
-          <div style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '20px', position: 'sticky', top: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#0f172a' }}>Transaction Detail</h3>
-              <button onClick={() => setSelectedPayment(null)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
-            </div>
-
-            <div style={{ fontSize: '32px', fontWeight: '800', color: '#0f172a', marginBottom: '6px' }}>₹{selectedPayment.amount?.toFixed(2)}</div>
-            <div style={{ marginBottom: '16px' }}>{statusBadge(selectedPayment.status)}</div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
-              {[
-                ['Method', `${paymentMethodIcon(selectedPayment.paymentMethod || selectedPayment.provider)} ${selectedPayment.paymentMethod || selectedPayment.provider}`],
-                ['Transaction ID', selectedPayment.id?.slice(-12)],
-                ['Date', new Date(selectedPayment.createdAt).toLocaleString()],
-                selectedPayment.ride && ['Ride ID', selectedPayment.ride?.id?.slice(-12)],
-                selectedPayment.ride?.customer && ['Customer', selectedPayment.ride.customer.name],
-                selectedPayment.ride?.driver && ['Driver', selectedPayment.ride.driver?.name],
-              ].filter(Boolean).map(([k, v]) => (
-                <div key={k as string} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid #f1f5f9' }}>
-                  <span style={{ color: '#94a3b8' }}>{k}</span>
-                  <span style={{ fontWeight: '600', color: '#334155', textAlign: 'right', maxWidth: '160px', wordBreak: 'break-all' }}>{v}</span>
+          <div style={{ backgroundColor: theme.cardBg, borderRadius: '14px', border: `1px solid ${theme.border}`, padding: '22px', position: 'sticky', top: '20px', maxHeight: '88vh', overflowY: 'auto' }}>
+            {detailLoading ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: theme.textMuted }}>Loading details...</div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: theme.text }}>Transaction Receipt</h3>
+                    <span style={{ fontSize: '11px', color: theme.textMuted, fontFamily: 'monospace' }}>Tx: {selectedPayment.id}</span>
+                  </div>
+                  <button onClick={() => setSelectedPayment(null)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: theme.textMuted }}>✕</button>
                 </div>
-              ))}
-            </div>
+
+                <div style={{ backgroundColor: theme.cardBgSecondary, borderRadius: '12px', padding: '16px', marginBottom: '16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: theme.textMuted, textTransform: 'uppercase', fontWeight: '700' }}>Amount Charged</div>
+                  <div style={{ fontSize: '32px', fontWeight: '900', color: '#00b562', marginTop: '2px' }}>₹{selectedPayment.amount?.toFixed(2)}</div>
+                  <div style={{ fontSize: '12px', color: theme.textMuted, marginTop: '2px' }}>
+                    Method: {METHOD_ICONS[selectedPayment.paymentMethod] || selectedPayment.paymentMethod}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', color: theme.textMuted }}>
+                    <span>Gateway Provider</span>
+                    <strong style={{ color: theme.text }}>{selectedPayment.provider || 'UPI Direct / Razorpay'}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', color: theme.textMuted }}>
+                    <span>Transaction ID</span>
+                    <span style={{ fontFamily: 'monospace', color: theme.text }}>{selectedPayment.transactionId || 'MOCK-TX-100'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', color: theme.textMuted }}>
+                    <span>Payment Status</span>
+                    <strong style={{ color: selectedPayment.status === 'COMPLETED' ? '#00b562' : '#f59e0b' }}>{selectedPayment.status}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', color: theme.textMuted }}>
+                    <span>Timestamp</span>
+                    <span style={{ color: theme.text }}>{new Date(selectedPayment.createdAt).toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Ride route snapshot */}
+                {selectedPayment.ride && (
+                  <div style={{ backgroundColor: theme.cardBgSecondary, borderRadius: '10px', padding: '12px', marginBottom: '16px' }}>
+                    <div style={{ fontSize: '10.5px', color: theme.textMuted, fontWeight: '800', textTransform: 'uppercase', marginBottom: '6px' }}>Associated Trip</div>
+                    <div style={{ fontSize: '12.5px', color: theme.text, fontWeight: '600' }}>📍 {selectedPayment.ride.pickupAddress}</div>
+                    <div style={{ fontSize: '12.5px', color: theme.text, marginTop: '4px', fontWeight: '600' }}>🏁 {selectedPayment.ride.dropoffAddress}</div>
+                    <div style={{ fontSize: '11.5px', color: theme.textMuted, marginTop: '6px' }}>
+                      Vehicle: {selectedPayment.ride.vehicleType} · Status: {selectedPayment.ride.status}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>
