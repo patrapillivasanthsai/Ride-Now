@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { 
+  User, Mail, Phone, Calendar, Lock, ShieldCheck, 
+  AlertCircle, CheckCircle, Edit2, X, PlusCircle, UserPlus, Trash2 
+} from 'lucide-react';
 
 interface TrustedContact {
   name: string;
@@ -15,10 +19,8 @@ export function Profile() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Mode state
   const [isEditMode, setIsEditMode] = useState(false);
 
-  // Form values
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [gender, setGender] = useState('');
@@ -26,13 +28,11 @@ export function Profile() {
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
 
-  // Trusted Contacts local state
   const [contacts, setContacts] = useState<TrustedContact[]>([]);
   const [newContactName, setNewContactName] = useState('');
   const [newContactPhone, setNewContactPhone] = useState('');
   const [isAddingContact, setIsAddingContact] = useState(false);
   
-  // Local edit target index for inline contact editing
   const [editingContactIdx, setEditingContactIdx] = useState<number | null>(null);
   const [editContactName, setEditContactName] = useState('');
   const [editContactPhone, setEditContactPhone] = useState('');
@@ -48,7 +48,6 @@ export function Profile() {
         setGender(data.gender || '');
         
         if (data.dob) {
-          // Format DateTime to YYYY-MM-DD for date input
           const dateObj = new Date(data.dob);
           const yyyy = dateObj.getFullYear();
           const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -58,11 +57,8 @@ export function Profile() {
           setDob('');
         }
 
-        // Handle JSON array parsing safely
         if (data.trustedContacts) {
-          const parsed = typeof data.trustedContacts === 'string' 
-            ? JSON.parse(data.trustedContacts) 
-            : data.trustedContacts;
+          const parsed = typeof data.trustedContacts === 'string' ? JSON.parse(data.trustedContacts) : data.trustedContacts;
           setContacts(Array.isArray(parsed) ? parsed : []);
         } else {
           setContacts([]);
@@ -78,9 +74,7 @@ export function Profile() {
 
   const handleCancelEdit = () => {
     setIsEditMode(false);
-    setError(null);
-    setSuccess(null);
-    // Reset form values to profile loaded values
+    setError(null); setSuccess(null);
     setName(profile?.name || '');
     setEmail(profile?.email || '');
     setGender(profile?.gender || '');
@@ -98,25 +92,19 @@ export function Profile() {
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
+    setError(null); setSuccess(null);
 
-    // Form validations
     if (!email.trim()) {
-      setError('Email address cannot be empty.');
-      return;
+      setError('Email address cannot be empty.'); return;
     }
     
-    // Simple email validation regex
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address.');
-      return;
+      setError('Please enter a valid email address.'); return;
     }
 
     if (password && password.length < 6) {
-      setError('New password must be at least 6 characters long.');
-      return;
+      setError('New password must be at least 6 characters long.'); return;
     }
 
     setUpdating(true);
@@ -126,19 +114,16 @@ export function Profile() {
         email: email.trim(),
         gender: gender || null,
         dob: dob || null,
-        trustedContacts: contacts // Save existing contacts state
+        trustedContacts: contacts
       };
-
-      if (password) {
-        payload.password = password;
-      }
+      if (password) payload.password = password;
 
       const res = await api.updateProfile(payload);
       setProfile(res);
       setSuccess('Profile updated successfully!');
       setIsEditMode(false);
-      setPassword(''); // clear password field
-      await refreshUser(); // refresh user in auth context
+      setPassword('');
+      await refreshUser();
     } catch (err: any) {
       setError(err.message || 'Failed to update profile.');
     } finally {
@@ -146,15 +131,12 @@ export function Profile() {
     }
   };
 
-  // Add a trusted contact
   const handleAddContact = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
+    setError(null); setSuccess(null);
 
     if (!newContactName.trim() || !newContactPhone.trim()) {
-      setError('Contact name and phone number are required.');
-      return;
+      setError('Contact name and phone number are required.'); return;
     }
 
     const updatedContacts = [...contacts, { name: newContactName.trim(), phone: newContactPhone.trim() }];
@@ -163,8 +145,7 @@ export function Profile() {
     try {
       await api.updateProfile({ trustedContacts: updatedContacts });
       setContacts(updatedContacts);
-      setNewContactName('');
-      setNewContactPhone('');
+      setNewContactName(''); setNewContactPhone('');
       setIsAddingContact(false);
       setSuccess('Trusted contact added successfully!');
     } catch (err: any) {
@@ -174,11 +155,8 @@ export function Profile() {
     }
   };
 
-  // Delete a trusted contact
   const handleDeleteContact = async (indexToDelete: number) => {
-    setError(null);
-    setSuccess(null);
-
+    setError(null); setSuccess(null);
     const updatedContacts = contacts.filter((_, idx) => idx !== indexToDelete);
 
     setUpdating(true);
@@ -193,21 +171,15 @@ export function Profile() {
     }
   };
 
-  // Save edits of trusted contact inline
   const handleSaveContactEdit = async (idx: number) => {
-    setError(null);
-    setSuccess(null);
+    setError(null); setSuccess(null);
 
     if (!editContactName.trim() || !editContactPhone.trim()) {
-      setError('Contact name and phone number cannot be empty.');
-      return;
+      setError('Contact name and phone number cannot be empty.'); return;
     }
 
     const updatedContacts = [...contacts];
-    updatedContacts[idx] = {
-      name: editContactName.trim(),
-      phone: editContactPhone.trim()
-    };
+    updatedContacts[idx] = { name: editContactName.trim(), phone: editContactPhone.trim() };
 
     setUpdating(true);
     try {
@@ -230,115 +202,47 @@ export function Profile() {
 
   if (loading) {
     return (
-      <div style={{ maxWidth: '800px', margin: '40px auto', padding: '0 20px', textAlign: 'center', fontFamily: 'sans-serif' }}>
-        <div style={{ padding: '60px 20px', backgroundColor: '#fff', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid #e3e6f0' }}>
-          <div className="spinner" style={{ border: '4px solid #f3f3f3', borderTop: '4px solid #00b562', borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 1s linear infinite', margin: '0 auto 20px auto' }}></div>
-          <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-          <h3 style={{ color: '#555', fontSize: '18px', fontWeight: '600' }}>Loading your premium profile experience...</h3>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-10 w-10 border-4 border-brand-green border-t-transparent"></div>
+        <p className="mt-4 text-slate-500 font-semibold">Loading your profile...</p>
       </div>
     );
   }
 
-  // Get initials for profile avatar fallback
   const userInitials = (name || email || 'C').slice(0, 2).toUpperCase();
 
   return (
-    <div style={{ maxWidth: '1000px', margin: '40px auto', padding: '0 20px', fontFamily: 'sans-serif', boxSizing: 'border-box' }}>
+    <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
       
-      {/* Alert Feedbacks */}
       {error && (
-        <div style={{
-          backgroundColor: '#fff5f5',
-          color: '#e53e3e',
-          borderLeft: '4px solid #e53e3e',
-          padding: '16px 20px',
-          borderRadius: '8px',
-          marginBottom: '25px',
-          fontSize: '14px',
-          fontWeight: '500',
-          boxShadow: '0 2px 10px rgba(229, 62, 62, 0.08)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <span>⚠️ {error}</span>
-          <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', color: '#e53e3e', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px' }}>×</button>
+        <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-6 text-sm font-semibold border border-red-100 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3"><AlertCircle className="w-5 h-5 shrink-0" /> {error}</div>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600"><X className="w-5 h-5" /></button>
         </div>
       )}
 
       {success && (
-        <div style={{
-          backgroundColor: '#f0fff4',
-          color: '#38a169',
-          borderLeft: '4px solid #38a169',
-          padding: '16px 20px',
-          borderRadius: '8px',
-          marginBottom: '25px',
-          fontSize: '14px',
-          fontWeight: '500',
-          boxShadow: '0 2px 10px rgba(56, 161, 105, 0.08)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <span>✅ {success}</span>
-          <button onClick={() => setSuccess(null)} style={{ background: 'none', border: 'none', color: '#38a169', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px' }}>×</button>
+        <div className="bg-green-50 text-brand-green p-4 rounded-xl mb-6 text-sm font-semibold border border-green-100 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3"><CheckCircle className="w-5 h-5 shrink-0" /> {success}</div>
+          <button onClick={() => setSuccess(null)} className="text-green-400 hover:text-green-600"><X className="w-5 h-5" /></button>
         </div>
       )}
 
       {/* Header Profile Summary Panel */}
-      <div style={{
-        backgroundColor: '#fff',
-        borderRadius: '16px',
-        border: '1px solid #e2e8f0',
-        padding: '30px',
-        boxShadow: '0 4px 15px rgba(0,0,0,0.03)',
-        display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '20px',
-        marginBottom: '35px'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-          <div style={{
-            width: '80px',
-            height: '80px',
-            borderRadius: '50%',
-            backgroundColor: '#e6fffa',
-            border: '2.5px solid #00b562',
-            color: '#00b562',
-            fontSize: '28px',
-            fontWeight: 'bold',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 4px 10px rgba(0, 181, 98, 0.1)'
-          }}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-xl shadow-slate-200/50 dark:shadow-none mb-8 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="flex flex-col md:flex-row items-center md:items-start gap-6 text-center md:text-left">
+          <div className="w-24 h-24 rounded-full bg-green-50 dark:bg-green-950/30 border-4 border-brand-green/20 text-brand-green text-3xl font-extrabold flex items-center justify-center shadow-inner">
             {userInitials}
           </div>
-          <div>
-            <h2 style={{ margin: '0 0 6px 0', fontSize: '24px', fontWeight: 'bold', color: '#1a202c' }}>
-              {name || 'RideNow Customer'}
-            </h2>
-            <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: '13px', color: '#718096' }}>
-                📅 Joined: {profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}
+          <div className="mt-2 md:mt-0">
+            <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-2">{name || 'RideNow Customer'}</h2>
+            <div className="flex flex-wrap justify-center md:justify-start items-center gap-3">
+              <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 flex items-center gap-2">
+                <Calendar className="w-4 h-4" /> Joined {profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}
               </span>
               {profile?.averageRating !== undefined && profile?.averageRating !== null && (
-                <span style={{
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  backgroundColor: '#f0fff4',
-                  color: '#38a169',
-                  padding: '4px 10px',
-                  borderRadius: '20px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}>
-                  ★ {profile.averageRating} ({profile.totalRatings} reviews)
+                <span className="text-sm font-bold text-brand-green bg-green-50 px-3 py-1 rounded-full border border-green-100 flex items-center gap-1.5">
+                  ⭐ {profile.averageRating} ({profile.totalRatings} reviews)
                 </span>
               )}
             </div>
@@ -346,80 +250,44 @@ export function Profile() {
         </div>
         
         {!isEditMode && (
-          <button
-            onClick={() => setIsEditMode(true)}
-            style={{
-              backgroundColor: '#00b562',
-              color: '#fff',
-              border: 'none',
-              padding: '12px 24px',
-              borderRadius: '30px',
-              fontWeight: 'bold',
-              fontSize: '14px',
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(0, 181, 98, 0.2)',
-              transition: 'background 0.2s',
-            }}
-          >
-            ✏️ Edit Profile
+          <button onClick={() => setIsEditMode(true)} className="flex items-center gap-2 bg-brand-green hover:bg-green-600 text-white px-6 py-3 rounded-full font-bold transition shadow-lg shadow-brand-green/20">
+            <Edit2 className="w-4 h-4" /> Edit Profile
           </button>
         )}
       </div>
 
-      {/* Main Two-Column Content Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-        gap: '30px',
-        alignItems: 'start'
-      }}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
         
         {/* Left Column: Personal details */}
-        <div style={{
-          backgroundColor: '#fff',
-          borderRadius: '16px',
-          border: '1px solid #e2e8f0',
-          padding: '30px',
-          boxShadow: '0 4px 15px rgba(0,0,0,0.03)'
-        }}>
-          <h3 style={{ margin: '0 0 25px 0', fontSize: '18px', fontWeight: 'bold', color: '#2d3748', borderBottom: '1px solid #edf2f7', paddingBottom: '15px' }}>
-            Personal Account Information
-          </h3>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-xl shadow-slate-200/50 dark:shadow-none">
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">Personal Information</h3>
 
           {isEditMode ? (
-            /* EDIT FORM VIEW */
-            <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <form onSubmit={handleUpdateProfile} className="flex flex-col gap-5">
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold', color: '#4a5568' }}>Full Name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter your full name"
-                  style={inputStyle}
-                />
+                <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Full Name</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                  <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Enter full name"
+                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-brand-green focus:border-brand-green transition" />
+                </div>
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold', color: '#4a5568' }}>Email Address</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  style={inputStyle}
-                  required
-                />
+                <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
+                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-brand-green focus:border-brand-green transition" />
+                </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+              <div className="grid grid-cols-2 gap-5">
                 <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold', color: '#4a5568' }}>Gender</label>
-                  <select
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                    style={inputStyle}
-                  >
-                    <option value="">Select Gender</option>
+                  <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Gender</label>
+                  <select value={gender} onChange={e => setGender(e.target.value)}
+                    className="w-full py-3 px-4 bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-brand-green focus:border-brand-green transition">
+                    <option value="">Select</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                     <option value="Other">Other</option>
@@ -427,395 +295,172 @@ export function Profile() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold', color: '#4a5568' }}>Date of Birth</label>
-                  <input
-                    type="date"
-                    value={dob}
-                    onChange={(e) => setDob(e.target.value)}
-                    style={inputStyle}
-                  />
+                  <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Date of Birth</label>
+                  <input type="date" value={dob} onChange={e => setDob(e.target.value)}
+                    className="w-full py-3 px-4 bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-brand-green focus:border-brand-green transition" />
                 </div>
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold', color: '#4a5568' }}>
-                  Update Password <span style={{ fontWeight: 'normal', color: '#718096' }}>(leave blank to keep current)</span>
+                <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                  Update Password <span className="font-normal text-slate-400 normal-case">(leave blank to keep current)</span>
                 </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  style={inputStyle}
-                />
-              </div>
-
-              {/* Read Only primary phone information in Edit Mode */}
-              <div style={{
-                backgroundColor: '#f7fafc',
-                border: '1px dashed #cbd5e0',
-                padding: '15px',
-                borderRadius: '8px'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 'bold', color: '#718096', marginBottom: '4px' }}>
-                  <span>🔒 Registered Mobile</span>
-                </div>
-                <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#4a5568' }}>{phone}</div>
-                <div style={{ fontSize: '11px', color: '#a0aec0', marginTop: '6px', lineHeight: 1.4 }}>
-                  Verified phone details are securely locked and cannot be directly modified. Contact support to request edits.
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••"
+                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-brand-green focus:border-brand-green transition" />
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
-                <button
-                  type="submit"
-                  disabled={updating}
-                  style={{
-                    flex: 1,
-                    backgroundColor: '#00b562',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    fontWeight: 'bold',
-                    fontSize: '14px',
-                    cursor: updating ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 2px 8px rgba(0, 181, 98, 0.15)'
-                  }}
-                >
-                  {updating ? 'Saving changes...' : 'Save Profile'}
+              <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl mt-2">
+                <div className="flex items-center gap-2 text-slate-500 font-bold text-xs uppercase tracking-wide mb-2">
+                  <ShieldCheck className="w-4 h-4 text-brand-green" /> Registered Mobile
+                </div>
+                <div className="text-lg font-bold text-slate-900 mb-2">{phone}</div>
+                <p className="text-xs text-slate-500 leading-relaxed">Verified phone details are securely locked and cannot be directly modified. Contact support to request edits.</p>
+              </div>
+
+              <div className="flex gap-4 mt-4">
+                <button type="submit" disabled={updating}
+                  className="flex-1 bg-brand-green hover:bg-green-600 text-white py-3 rounded-xl font-bold transition shadow-lg shadow-brand-green/20 disabled:opacity-70">
+                  {updating ? 'Saving...' : 'Save Profile'}
                 </button>
-                <button
-                  type="button"
-                  onClick={handleCancelEdit}
-                  disabled={updating}
-                  style={{
-                    flex: 1,
-                    backgroundColor: '#fff',
-                    color: '#4a5568',
-                    border: '1px solid #cbd5e0',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    fontWeight: 'bold',
-                    fontSize: '14px',
-                    cursor: updating ? 'not-allowed' : 'pointer'
-                  }}
-                >
+                <button type="button" onClick={handleCancelEdit} disabled={updating}
+                  className="flex-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 py-3 rounded-xl font-bold transition disabled:opacity-70">
                   Cancel
                 </button>
               </div>
             </form>
           ) : (
-            /* READ-ONLY CARD VIEW */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div className="flex flex-col gap-6">
+              <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <span style={{ display: 'block', fontSize: '12px', color: '#a0aec0', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px' }}>Name</span>
-                  <span style={{ fontSize: '16px', fontWeight: '600', color: '#2d3748' }}>{profile?.name || 'Not provided'}</span>
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Name</span>
+                  <span className="text-base font-bold text-slate-900">{profile?.name || 'Not provided'}</span>
                 </div>
                 <div>
-                  <span style={{ display: 'block', fontSize: '12px', color: '#a0aec0', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px' }}>Gender</span>
-                  <span style={{ fontSize: '16px', fontWeight: '600', color: '#2d3748' }}>{profile?.gender || 'Not specified'}</span>
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Gender</span>
+                  <span className="text-base font-bold text-slate-900">{profile?.gender || 'Not specified'}</span>
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', borderTop: '1px solid #f7fafc', paddingTop: '20px' }}>
+              <div className="grid grid-cols-2 gap-6 border-t border-slate-100 pt-6">
                 <div>
-                  <span style={{ display: 'block', fontSize: '12px', color: '#a0aec0', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px' }}>Email Address</span>
-                  <span style={{ fontSize: '16px', fontWeight: '600', color: '#2d3748', wordBreak: 'break-all' }}>{profile?.email}</span>
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Email Address</span>
+                  <span className="text-base font-bold text-slate-900 break-all">{profile?.email}</span>
                 </div>
                 <div>
-                  <span style={{ display: 'block', fontSize: '12px', color: '#a0aec0', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px' }}>Date of Birth</span>
-                  <span style={{ fontSize: '16px', fontWeight: '600', color: '#2d3748' }}>
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Date of Birth</span>
+                  <span className="text-base font-bold text-slate-900">
                     {profile?.dob ? new Date(profile.dob).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : 'Not set'}
                   </span>
                 </div>
               </div>
 
-              {/* Secure Phone Section */}
-              <div style={{
-                backgroundColor: '#f7fafc',
-                border: '1px solid #edf2f7',
-                padding: '20px',
-                borderRadius: '12px',
-                marginTop: '10px'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '12px', color: '#718096', fontWeight: 'bold', textTransform: 'uppercase' }}>Verified Phone</span>
-                  <span style={{ fontSize: '11px', color: '#38a169', fontWeight: 'bold', backgroundColor: '#e6fffa', padding: '2px 8px', borderRadius: '20px' }}>✔ Secured</span>
+              <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl mt-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Verified Phone</span>
+                  <span className="text-[10px] font-bold text-brand-green bg-green-50 px-2.5 py-1 rounded-full border border-green-100 flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> Secured</span>
                 </div>
-                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#2d3748', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>📞</span>
-                  <span>{profile?.phone}</span>
+                <div className="text-xl font-bold text-slate-900 flex items-center gap-2 mb-2">
+                  <Phone className="w-5 h-5 text-slate-400" /> {profile?.phone}
                 </div>
-                <p style={{ fontSize: '11px', color: '#a0aec0', margin: '8px 0 0 0', lineHeight: 1.4 }}>
-                  Verified phone details are securely locked and cannot be directly modified. Contact support to request edits.
-                </p>
+                <p className="text-xs text-slate-500 leading-relaxed">Verified phone details are securely locked and cannot be directly modified. Contact support to request edits.</p>
               </div>
             </div>
           )}
         </div>
 
-        {/* Right Column: Safety center emergency contacts */}
-        <div style={{
-          backgroundColor: '#fff',
-          borderRadius: '16px',
-          border: '1px solid #e2e8f0',
-          padding: '30px',
-          boxShadow: '0 4px 15px rgba(0,0,0,0.03)',
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: '400px'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #edf2f7', paddingBottom: '15px', marginBottom: '20px' }}>
+        {/* Right Column: Safety center */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-xl shadow-slate-200/50 dark:shadow-none flex flex-col min-h-[400px]">
+          <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
             <div>
-              <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 'bold', color: '#2d3748' }}>
-                Safety Emergency Contacts
-              </h3>
-              <span style={{ fontSize: '12px', color: '#a0aec0' }}>Share your live location & trip alerts</span>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Safety Contacts</h3>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Share your live location & alerts</p>
             </div>
             {!isAddingContact && (
-              <button
-                onClick={() => { setIsAddingContact(true); setError(null); setSuccess(null); }}
-                style={{
-                  backgroundColor: '#ebf8ff',
-                  color: '#3182ce',
-                  border: 'none',
-                  padding: '6px 12px',
-                  borderRadius: '20px',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer'
-                }}
-              >
-                + Add New
+              <button onClick={() => { setIsAddingContact(true); setError(null); setSuccess(null); }}
+                className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-1.5 rounded-full text-xs font-bold transition">
+                <PlusCircle className="w-4 h-4" /> Add New
               </button>
             )}
           </div>
 
-          {/* Form to Add New Contact */}
           {isAddingContact && (
-            <form onSubmit={handleAddContact} style={{
-              backgroundColor: '#f7fafc',
-              border: '1px solid #edf2f7',
-              padding: '20px',
-              borderRadius: '12px',
-              marginBottom: '20px'
-            }}>
-              <h4 style={{ margin: '0 0 15px 0', fontSize: '14px', fontWeight: 'bold', color: '#4a5568' }}>Add Safety Contact</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '15px' }}>
-                <input
-                  type="text"
-                  placeholder="Contact Name"
-                  value={newContactName}
-                  onChange={(e) => setNewContactName(e.target.value)}
-                  style={inputStyle}
-                  required
-                />
-                <input
-                  type="tel"
-                  placeholder="Contact Phone Number"
-                  value={newContactPhone}
-                  onChange={(e) => setNewContactPhone(e.target.value)}
-                  style={inputStyle}
-                  required
-                />
+            <form onSubmit={handleAddContact} className="bg-slate-50 border border-slate-200 p-5 rounded-xl mb-6">
+              <h4 className="text-sm font-bold text-slate-900 mb-4">Add Safety Contact</h4>
+              <div className="flex flex-col gap-3 mb-4">
+                <input type="text" placeholder="Contact Name" value={newContactName} onChange={e => setNewContactName(e.target.value)} required
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-brand-green focus:border-brand-green transition" />
+                <input type="tel" placeholder="Contact Phone Number" value={newContactPhone} onChange={e => setNewContactPhone(e.target.value)} required
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-brand-green focus:border-brand-green transition" />
               </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  type="submit"
-                  disabled={updating}
-                  style={{
-                    backgroundColor: '#00b562',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '8px 16px',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    cursor: updating ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  Save Contact
+              <div className="flex gap-3">
+                <button type="submit" disabled={updating}
+                  className="flex-1 bg-brand-green hover:bg-green-600 text-white py-2 rounded-lg text-sm font-bold transition disabled:opacity-70">
+                  Save
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setIsAddingContact(false)}
-                  style={{
-                    backgroundColor: '#fff',
-                    color: '#4a5568',
-                    border: '1px solid #cbd5e0',
-                    padding: '8px 16px',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer'
-                  }}
-                >
+                <button type="button" onClick={() => setIsAddingContact(false)}
+                  className="flex-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 py-2 rounded-lg text-sm font-bold transition">
                   Cancel
                 </button>
               </div>
             </form>
           )}
 
-          {/* Contacts List */}
           {contacts.length === 0 ? (
-            /* EMPTY STATE */
-            <div style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-              padding: '40px 20px',
-              border: '2px dashed #edf2f7',
-              borderRadius: '12px',
-              backgroundColor: '#fcfdfd'
-            }}>
-              <span style={{ fontSize: '40px', marginBottom: '15px' }}>🛡️</span>
-              <h4 style={{ margin: '0 0 8px 0', color: '#4a5568', fontSize: '15px', fontWeight: 'bold' }}>Keep your loved ones informed</h4>
-              <p style={{ margin: 0, color: '#a0aec0', fontSize: '13px', lineHeight: 1.5, maxWidth: '280px' }}>
-                Add family or friends to quickly share your live location or send emergency SMS alerts in case of safety issues.
-              </p>
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm">
+                <UserPlus className="w-8 h-8 text-slate-300" />
+              </div>
+              <h4 className="text-base font-bold text-slate-700 mb-2">Keep loved ones informed</h4>
+              <p className="text-sm text-slate-500 max-w-[250px]">Add family or friends to quickly share your live location or send emergency alerts.</p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <div className="flex flex-col gap-4">
               {contacts.map((contact, idx) => (
-                <div key={idx} style={{
-                  padding: '15px',
-                  borderRadius: '12px',
-                  border: '1px solid #edf2f7',
-                  backgroundColor: editingContactIdx === idx ? '#f7fafc' : '#fff',
-                  boxShadow: '0 2px 5px rgba(0,0,0,0.01)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '10px'
-                }}>
+                <div key={idx} className={`p-4 rounded-xl border transition ${editingContactIdx === idx ? 'bg-slate-50 border-slate-300' : 'bg-white border-slate-100 shadow-sm hover:border-slate-300'}`}>
                   {editingContactIdx === idx ? (
-                    /* EDITING SINGLE CONTACT */
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-                      <input
-                        type="text"
-                        value={editContactName}
-                        onChange={(e) => setEditContactName(e.target.value)}
-                        style={inputStyle}
-                      />
-                      <input
-                        type="tel"
-                        value={editContactPhone}
-                        onChange={(e) => setEditContactPhone(e.target.value)}
-                        style={inputStyle}
-                      />
-                      <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-                        <button
-                          onClick={() => handleSaveContactEdit(idx)}
-                          disabled={updating}
-                          style={{
-                            backgroundColor: '#00b562',
-                            color: '#fff',
-                            border: 'none',
-                            padding: '6px 12px',
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                            cursor: updating ? 'not-allowed' : 'pointer'
-                          }}
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={() => setEditingContactIdx(null)}
-                          style={{
-                            backgroundColor: '#fff',
-                            color: '#4a5568',
-                            border: '1px solid #cbd5e0',
-                            padding: '6px 12px',
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Cancel
-                        </button>
+                    <div className="flex flex-col gap-3 w-full">
+                      <input type="text" value={editContactName} onChange={e => setEditContactName(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 text-sm rounded-lg focus:ring-brand-green focus:border-brand-green transition" />
+                      <input type="tel" value={editContactPhone} onChange={e => setEditContactPhone(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 text-sm rounded-lg focus:ring-brand-green focus:border-brand-green transition" />
+                      <div className="flex gap-2 mt-1">
+                        <button onClick={() => handleSaveContactEdit(idx)} disabled={updating}
+                          className="px-4 py-1.5 bg-brand-green text-white rounded-md text-xs font-bold disabled:opacity-70">Save</button>
+                        <button onClick={() => setEditingContactIdx(null)}
+                          className="px-4 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-md text-xs font-bold">Cancel</button>
                       </div>
                     </div>
                   ) : (
-                    /* READY STATE CONTACT CARD */
-                    <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: '50%',
-                          backgroundColor: '#ebf8ff',
-                          color: '#2b6cb0',
-                          fontSize: '16px',
-                          fontWeight: 'bold',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
+                    <div className="flex justify-between items-center gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 font-bold flex items-center justify-center shrink-0">
                           {contact.name.slice(0, 1).toUpperCase()}
                         </div>
                         <div>
-                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#2d3748' }}>{contact.name}</div>
-                          <div style={{ fontSize: '13px', color: '#718096', marginTop: '2px' }}>📱 {contact.phone}</div>
+                          <div className="font-bold text-slate-900 text-sm">{contact.name}</div>
+                          <div className="text-xs font-medium text-slate-500 mt-0.5">{contact.phone}</div>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '10px' }}>
-                        <button
-                          onClick={() => startEditContact(idx, contact)}
-                          style={{
-                            backgroundColor: 'transparent',
-                            color: '#4a5568',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: '13px'
-                          }}
-                          title="Edit Contact"
-                        >
-                          ✏️
+                      <div className="flex gap-1 shrink-0">
+                        <button onClick={() => startEditContact(idx, contact)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
+                          <Edit2 className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => handleDeleteContact(idx)}
-                          style={{
-                            backgroundColor: 'transparent',
-                            color: '#e53e3e',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: '13px'
-                          }}
-                          title="Delete Contact"
-                        >
-                          🗑️
+                        <button onClick={() => handleDeleteContact(idx)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete">
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
               ))}
             </div>
           )}
         </div>
+
       </div>
     </div>
   );
 }
-
-// Styling definitions
-const inputStyle = {
-  width: '100%',
-  padding: '12px 16px',
-  border: '1px solid #cbd5e0',
-  borderRadius: '8px',
-  boxSizing: 'border-box' as const,
-  fontSize: '14px',
-  outline: 'none',
-  transition: 'border 0.2s',
-  backgroundColor: '#fff',
-  fontFamily: 'sans-serif'
-};

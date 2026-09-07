@@ -1,7 +1,50 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform, NativeModules } from 'react-native';
 
-// In Android emulators, 10.0.2.2 is mapped to the host's localhost (3000 for backend)
-const API_URL = 'http://10.0.2.2:3000';
+// Laptop active Wi-Fi IPv4 address for physical Android devices
+const DEV_LAN_IP = '192.168.1.2';
+
+const getApiUrl = () => {
+  const g: any = globalThis;
+
+  // 1. Web / Browser environment
+  if (g && g.window && g.window.location && g.window.location.hostname) {
+    const host = g.window.location.hostname;
+    if (host && host !== '10.0.2.2') {
+      return `http://${host}:3000`;
+    }
+  }
+
+  // 2. Mobile environment check (Metro / scriptURL)
+  const scriptURL: string | undefined = NativeModules.SourceCode?.scriptURL;
+  if (scriptURL) {
+    try {
+      const match = scriptURL.match(/^https?:\/\/([^/:]+)/);
+      const host = match ? match[1] : null;
+
+      // Android Studio Emulator explicitly uses 10.0.2.2
+      if (host === '10.0.2.2') {
+        return 'http://10.0.2.2:3000';
+      }
+
+      // Physical phone over Metro/Wi-Fi
+      if (host && host !== 'localhost' && host !== '127.0.0.1') {
+        return `http://${host}:3000`;
+      }
+    } catch {
+      // Ignore parse error and fallback
+    }
+  }
+
+  // 3. Android fallback: use laptop Wi-Fi IPv4 (192.168.1.2) for physical phone connectivity
+  if (Platform.OS === 'android') {
+    return `http://${DEV_LAN_IP}:3000`;
+  }
+
+  return 'http://localhost:3000';
+};
+
+const API_URL = getApiUrl();
 
 async function apiFetch(path: string, options: RequestInit = {}) {
   const token = await AsyncStorage.getItem('token');
@@ -12,20 +55,34 @@ async function apiFetch(path: string, options: RequestInit = {}) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-  const responseData = await response.json().catch(() => ({}));
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
 
-  if (!response.ok) {
-    const errorCode = responseData.error?.code || 'HTTP_ERROR';
-    const errorMessage = responseData.error?.message || `Request failed with status ${response.status}`;
-    throw { status: response.status, code: errorCode, message: errorMessage };
+    const responseData = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const errorCode = responseData.error?.code || 'HTTP_ERROR';
+      const errorMessage = responseData.error?.message || `Request failed with status ${response.status}`;
+      throw { status: response.status, code: errorCode, message: errorMessage };
+    }
+
+    return responseData.data;
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw { status: 0, code: 'TIMEOUT', message: `Server connection timed out at ${API_URL}. Check if backend server is running.` };
+    }
+    if (err.status) throw err;
+    throw { status: 0, code: 'NETWORK_ERROR', message: err.message || `Cannot connect to server at ${API_URL}` };
   }
-
-  return responseData.data;
 }
 
 export const api = {
@@ -151,7 +208,8 @@ export const api = {
     });
   },
 
-  // Notifications
+  // Notifications & FCM
+  updateFcmToken: async (token: string) => apiFetch('/api/auth/fcm-token', { method: 'POST', body: JSON.stringify({ token }) }),
   getNotifications: async () => apiFetch('/api/driver/notifications'),
   markNotificationRead: async (id: string) => apiFetch(`/api/driver/notifications/${id}/read`, { method: 'PATCH' }),
 

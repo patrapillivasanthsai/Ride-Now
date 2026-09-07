@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { PermissionsAndroid, Platform } from 'react-native';
+import messaging from '@react-native-firebase/messaging';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../services/api';
 
@@ -17,6 +19,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // Auto-sync REAL FCM Registration Token for notifications
+  useEffect(() => {
+    async function syncFcmToken() {
+      if (user && user.role === 'DRIVER') {
+        try {
+          // Request Android 13+ Notification Permission
+          if (Platform.OS === 'android' && (Platform as any).Version >= 33) {
+            await PermissionsAndroid.request(
+              PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+            ).catch(() => {});
+          }
+
+          // Request Firebase Messaging authorization
+          await messaging().requestPermission().catch(() => {});
+
+          // Acquire REAL FCM Registration Token directly from Firebase Messaging SDK
+          let fcmToken: string | null = null;
+          try {
+            fcmToken = await messaging().getToken();
+            console.log('🔥 [REAL FCM TOKEN OBTAINED FROM FIREBASE]:', fcmToken);
+          } catch (err) {
+            console.warn('[FCM Token Fetch Warning]:', err);
+          }
+
+          if (fcmToken) {
+            await AsyncStorage.setItem('fcm_device_token', fcmToken);
+            await api.updateFcmToken(fcmToken).catch(() => {});
+            console.log('✅ [REAL FCM TOKEN SYNCED TO BACKEND DB]');
+          }
+        } catch {
+          // Ignore sync errors
+        }
+      }
+    }
+    syncFcmToken();
+  }, [user?.id]);
 
   useEffect(() => {
     async function loadAuth() {

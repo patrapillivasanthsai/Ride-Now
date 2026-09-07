@@ -194,7 +194,7 @@ export async function registerDriver(req: AuthenticatedRequest, res: Response) {
               referralCode: referralCode || null,
               licenseNumber: effectiveLicense || null,
               phone: normalizedPhone,
-              isApproved: false, // Default is false, needs admin approval later
+              isApproved: true, // Auto-approved on registration for direct access to Home page (Dashboard)
               status: DriverStatus.OFFLINE,
               vehicle: {
                 create: {
@@ -318,18 +318,30 @@ export async function registerDriver(req: AuthenticatedRequest, res: Response) {
           id: result.id,
           email: result.email,
           role: result.role,
-          driverProfile: {
-            id: result.driver?.id,
-            name: result.driver?.name,
-            licenseNumber: result.driver?.licenseNumber,
-            phone: result.driver?.phone,
-            isApproved: result.driver?.isApproved,
-            status: result.driver?.status,
-            vehicle: result.driver?.vehicle ? {
+          driver: result.driver ? {
+            id: result.driver.id,
+            name: result.driver.name,
+            licenseNumber: result.driver.licenseNumber,
+            phone: result.driver.phone,
+            isApproved: result.driver.isApproved,
+            status: result.driver.status,
+            vehicle: result.driver.vehicle ? {
               ...result.driver.vehicle,
               type: mapDbToUserFacingVehicleType(result.driver.vehicle.type)
             } : null
-          },
+          } : null,
+          driverProfile: result.driver ? {
+            id: result.driver.id,
+            name: result.driver.name,
+            licenseNumber: result.driver.licenseNumber,
+            phone: result.driver.phone,
+            isApproved: result.driver.isApproved,
+            status: result.driver.status,
+            vehicle: result.driver.vehicle ? {
+              ...result.driver.vehicle,
+              type: mapDbToUserFacingVehicleType(result.driver.vehicle.type)
+            } : null
+          } : null,
           createdAt: result.createdAt
         }
       }
@@ -388,6 +400,18 @@ export async function login(req: AuthenticatedRequest, res: Response) {
           email: user.email,
           role: user.role,
           customerProfile: user.customer ? { id: user.customer.id, phone: user.customer.phone } : null,
+          driver: user.driver ? {
+            id: user.driver.id,
+            name: user.driver.name,
+            licenseNumber: user.driver.licenseNumber,
+            phone: user.driver.phone,
+            isApproved: user.driver.isApproved,
+            status: user.driver.status,
+            vehicle: user.driver.vehicle ? {
+              ...user.driver.vehicle,
+              type: mapDbToUserFacingVehicleType(user.driver.vehicle.type)
+            } : null
+          } : null,
           driverProfile: user.driver ? {
             id: user.driver.id,
             name: user.driver.name,
@@ -399,7 +423,7 @@ export async function login(req: AuthenticatedRequest, res: Response) {
               ...user.driver.vehicle,
               type: mapDbToUserFacingVehicleType(user.driver.vehicle.type)
             } : null
-          } : null
+          } : null,
         },
         token
       }

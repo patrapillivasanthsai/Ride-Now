@@ -128,7 +128,7 @@ export class DispatchService {
       createdAt: ride.createdAt
     };
 
-    // Target the closest eligible matching drivers
+    // Target ONLY eligible matching drivers for this vehicle category
     for (const driver of eligibleDrivers) {
       // 1. Direct targeted socket event to the driver's private user channel
       emitToUser(driver.userId, 'incoming_ride_request', {
@@ -138,18 +138,16 @@ export class DispatchService {
         }
       });
 
-      // 2. Mobile push notification
+      // 2. Mobile push notification with sound to matching driver's FCM token
       if (driver.user?.fcmToken) {
         sendPushNotification(
           driver.user.fcmToken,
-          `New ${ride.vehicleType} Ride Request! ⚡`,
-          `Pickup at ${ride.pickupAddress} · Fare: ₹${ride.fare.toFixed(0)}`
+          `⚡ New ${ride.vehicleType} Ride Request!`,
+          `Pickup at ${ride.pickupAddress} · Fare: ₹${ride.fare.toFixed(0)}`,
+          { rideId: ride.id, vehicleType: ride.vehicleType, action: 'INCOMING_RIDE' }
         ).catch(() => {});
       }
     }
-
-    // Also broadcast to general online drivers pool
-    emitToRole(UserRole.DRIVER, 'available_ride_created', { ride: payload });
 
     return {
       dispatched: true,

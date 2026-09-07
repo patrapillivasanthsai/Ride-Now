@@ -203,6 +203,18 @@ export function Register({ onBackToLogin }: RegisterProps) {
     setStep(4);
   };
 
+  // Step 4 Validation helper for button state
+  const isBankValid =
+    accountHolderName.trim().length > 0 &&
+    bankName.trim().length > 0 &&
+    accountNumber.trim().length > 0 &&
+    confirmAccountNumber.trim().length > 0 &&
+    accountNumber.trim() === confirmAccountNumber.trim() &&
+    ifscCode.trim().length > 0;
+
+  const isUpiValid = upiId.trim().length > 0 && upiId.includes('@');
+  const isPayoutValid = payoutTab === 'BANK' ? isBankValid : isUpiValid;
+
   // Step 4: Final Payout Submission & Registration
   const handleFinalSubmit = async () => {
     if (payoutTab === 'BANK') {
@@ -237,7 +249,7 @@ export function Register({ onBackToLogin }: RegisterProps) {
     setError(null);
 
     try {
-      const regData = {
+      const regData: any = {
         name: name.trim(),
         phone: phone.trim(),
         email: email.trim().toLowerCase(),
@@ -250,7 +262,13 @@ export function Register({ onBackToLogin }: RegisterProps) {
           color: color.trim() || 'Black',
           plateNumber: plateNumber.trim().toUpperCase(),
           type: vehicleType,
-        }
+        },
+        payoutType: payoutTab === 'BANK' ? 'BANK_ACCOUNT' : 'UPI',
+        accountHolderName: accountHolderName.trim() || name.trim(),
+        bankName: bankName.trim(),
+        accountNumber: accountNumber.trim(),
+        ifscCode: ifscCode.trim().toUpperCase(),
+        upiId: upiId.trim()
       };
 
       const result = await api.registerDriver(regData);
@@ -268,30 +286,6 @@ export function Register({ onBackToLogin }: RegisterProps) {
 
       if (authToken && authUser) {
         await login(authToken, authUser);
-      }
-
-      // Save payout details with active token
-      if (payoutTab === 'BANK') {
-        try {
-          await api.savePayoutSetup({
-            type: 'BANK_ACCOUNT',
-            accountHolderName: accountHolderName.trim(),
-            bankName: bankName.trim(),
-            accountNumber: accountNumber.trim(),
-            ifscCode: ifscCode.trim().toUpperCase()
-          });
-        } catch (payoutErr: any) {
-          console.warn('Payout save notice:', payoutErr.message);
-        }
-      } else {
-        try {
-          await api.savePayoutSetup({
-            type: 'UPI',
-            upiId: upiId.trim()
-          });
-        } catch (payoutErr: any) {
-          console.warn('Payout save notice:', payoutErr.message);
-        }
       }
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please check your inputs.');
@@ -731,6 +725,7 @@ export function Register({ onBackToLogin }: RegisterProps) {
             title={t.verifyAndContinue || 'Verify & Complete Registration'}
             onPress={handleFinalSubmit}
             loading={loading}
+            disabled={!isPayoutValid || loading}
             style={{ marginTop: 20 }}
           />
         </View>

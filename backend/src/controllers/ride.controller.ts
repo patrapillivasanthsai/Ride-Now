@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient, RideStatus, VehicleType, UserRole, PaymentStatus, PaymentMethod } from '@prisma/client';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
-import { emitToRide, emitToRole } from '../socket';
+import { emitToRide, emitToRole, emitToUser } from '../socket';
 import { sendPushNotification } from '../utils/firebase';
 import { stripe } from '../utils/stripe';
 import { PaymentService } from '../services/payment.service';
@@ -236,6 +236,12 @@ export async function createRide(req: AuthenticatedRequest, res: Response) {
       initialPayStatus = PaymentStatus.PENDING;
       paymentProvider = 'UPI';
       transactionId = 'upi_mock_' + Math.random().toString(36).substring(2, 11);
+    } else if (paymentMethodId === 'RAZORPAY' || paymentMethodId.startsWith('rzp')) {
+      isAuthorized = true;
+      initialStatus = RideStatus.SEARCHING_DRIVER;
+      initialPayStatus = PaymentStatus.PENDING;
+      paymentProvider = 'RAZORPAY';
+      transactionId = 'rzp_pending_' + Math.random().toString(36).substring(2, 11);
     } else {
       // Create payment intent on Stripe using pre-auth (capture_method: manual)
       paymentIntent = await stripe.paymentIntents.create({
@@ -882,9 +888,9 @@ export async function acceptRide(req: AuthenticatedRequest, res: Response) {
 
     // Check that the ride is still available
     if (ride.status !== RideStatus.REQUESTED && ride.status !== RideStatus.SEARCHING_DRIVER) {
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
-        error: { code: 'RIDE_ALREADY_CLAIMED', message: 'This ride has already been accepted or cancelled' }
+        error: { code: 'RIDE_ALREADY_TAKEN', message: 'This ride has already been accepted by another driver' }
       });
     }
 
@@ -896,14 +902,13 @@ export async function acceptRide(req: AuthenticatedRequest, res: Response) {
       });
     }
 
-    const currentStatus = ride.status;
-
-    // Update ride atomically
+    // Update ride atomically - enforce driverId is null and status is requested/searching
     const updatedRide = await prisma.$transaction(async (tx) => {
       const updateResult = await tx.ride.updateMany({
         where: {
           id,
-          status: currentStatus // Concurrency check
+          driverId: null,
+          status: { in: [RideStatus.REQUESTED, RideStatus.SEARCHING_DRIVER] }
         },
         data: {
           status: RideStatus.DRIVER_ASSIGNED,
@@ -912,7 +917,7 @@ export async function acceptRide(req: AuthenticatedRequest, res: Response) {
       });
 
       if (updateResult.count === 0) {
-        throw new Error('CONCURRENT_MODIFICATION_DETECTED');
+        throw new Error('RIDE_ALREADY_TAKEN');
       }
 
       await tx.rideStatusHistory.create({
@@ -948,8 +953,21 @@ export async function acceptRide(req: AuthenticatedRequest, res: Response) {
     });
 
     if (updatedRide) {
+      // 1. Update ride room listeners (Customer & Driver)
       emitToRide(id, 'ride_status_changed', { ride: updatedRide });
+      emitToRide(id, 'ride_status_updated', { rideId: id, status: RideStatus.DRIVER_ASSIGNED, driver });
+
+      // 2. Notify all drivers to remove this ride from available lists
       emitToRole(UserRole.DRIVER, 'available_ride_removed', { rideId: id });
+
+      // 3. Notify other drivers directly to dismiss incoming request card
+      const otherEligibleDrivers = await DispatchService.findEligibleDrivers(id);
+      for (const otherDriver of otherEligibleDrivers) {
+        if (otherDriver.id !== driver.id) {
+          emitToUser(otherDriver.userId, 'incoming_ride_cancelled', { rideId: id, reason: 'RIDE_TAKEN' });
+        }
+      }
+
       await notifyRideStatusChange(id, RideStatus.DRIVER_ASSIGNED);
     }
 
@@ -959,10 +977,10 @@ export async function acceptRide(req: AuthenticatedRequest, res: Response) {
     });
 
   } catch (error: any) {
-    if (error.message === 'CONCURRENT_MODIFICATION_DETECTED') {
+    if (error.message === 'RIDE_ALREADY_TAKEN' || error.message === 'CONCURRENT_MODIFICATION_DETECTED') {
       return res.status(409).json({
         success: false,
-        error: { code: 'CONCURRENT_MODIFICATION', message: 'This ride was accepted by another driver' }
+        error: { code: 'RIDE_ALREADY_TAKEN', message: 'This ride has already been accepted by another driver' }
       });
     }
     return res.status(500).json({

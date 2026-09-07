@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../services/api';
+import { User, Mail, Phone, Lock, ArrowRight, AlertCircle, CheckCircle } from 'lucide-react';
 
 export function Register() {
   const [email, setEmail] = useState('');
@@ -49,167 +50,122 @@ export function Register() {
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
-      <div style={{
-        backgroundColor: '#fff',
-        padding: '30px',
-        borderRadius: '8px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-        width: '100%',
-        maxWidth: '450px',
-        boxSizing: 'border-box'
-      }}>
-        <h2 style={{ margin: '0 0 10px 0', color: '#00b562', textAlign: 'center' }}>Create Account</h2>
-        <p style={{ margin: '0 0 25px 0', color: '#666', textAlign: 'center', fontSize: '14px' }}>
-          Sign up as a customer to get started with RideNow
-        </p>
+    <div className="flex justify-center items-center min-h-[80vh] px-4 py-8">
+      <div className="bg-white dark:bg-slate-900 p-8 md:p-10 rounded-2xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 w-full max-w-lg">
+        
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-2">Create Account</h2>
+          <p className="text-slate-500 dark:text-slate-400 font-medium">Sign up as a customer to get started with RideNow</p>
+        </div>
 
         {error && (
-          <div style={{
-            backgroundColor: '#f8d7da',
-            color: '#721c24',
-            border: '1px solid #f5c6cb',
-            padding: '10px',
-            borderRadius: '4px',
-            marginBottom: '20px',
-            fontSize: '14px'
-          }}>
-            {error}
+          <div className="bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 p-4 rounded-xl mb-6 text-sm font-semibold flex items-start gap-3 border border-red-100 dark:border-red-900/50">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <div>{error}</div>
           </div>
         )}
 
         {success && (
-          <div style={{
-            backgroundColor: '#d4edda',
-            color: '#155724',
-            border: '1px solid #c3e6cb',
-            padding: '10px',
-            borderRadius: '4px',
-            marginBottom: '20px',
-            fontSize: '14px'
-          }}>
-            Registration successful! Redirecting to login...
+          <div className="bg-green-50 dark:bg-green-950/30 text-brand-green p-4 rounded-xl mb-6 text-sm font-semibold flex items-start gap-3 border border-green-100 dark:border-green-900/50">
+            <CheckCircle className="w-5 h-5 shrink-0" />
+            <div>Registration successful! Redirecting to login...</div>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', fontSize: '13px' }}>Full Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="John Doe"
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                boxSizing: 'border-box',
-                fontSize: '14px'
-              }}
-              required
-            />
+            <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">Full Name</label>
+            <div className="relative">
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="John Doe"
+                className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-brand-green transition text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500"
+                required
+              />
+            </div>
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', fontSize: '13px' }}>Email Address</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="customer@example.com"
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                boxSizing: 'border-box',
-                fontSize: '14px'
-              }}
-              required
-            />
+            <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">Email Address</label>
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="customer@example.com"
+                className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-brand-green transition text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500"
+                required
+              />
+            </div>
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', fontSize: '13px' }}>Phone Number</label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+15551234567"
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                boxSizing: 'border-box',
-                fontSize: '14px'
-              }}
-              required
-            />
+            <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">Phone Number</label>
+            <div className="relative">
+              <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+91 9876543210"
+                className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-brand-green transition text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500"
+                required
+              />
+            </div>
           </div>
 
-          <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', fontSize: '13px' }}>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Min 6 characters"
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                boxSizing: 'border-box',
-                fontSize: '14px'
-              }}
-              required
-            />
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Min 6 chars"
+                  className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-brand-green transition text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500"
+                  required
+                />
+              </div>
+            </div>
 
-          <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', fontSize: '13px' }}>Confirm Password</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Repeat password"
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                boxSizing: 'border-box',
-                fontSize: '14px'
-              }}
-              required
-            />
+            <div>
+              <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">Confirm Password</label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Repeat"
+                  className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-brand-green transition text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500"
+                  required
+                />
+              </div>
+            </div>
           </div>
 
           <button
             type="submit"
             disabled={loading || success}
-            style={{
-              backgroundColor: (loading || success) ? '#33cb82' : '#00b562',
-              color: '#fff',
-              border: 'none',
-              padding: '12px',
-              borderRadius: '4px',
-              cursor: (loading || success) ? 'not-allowed' : 'pointer',
-              fontWeight: 'bold',
-              fontSize: '15px',
-              marginTop: '10px'
-            }}
+            className="w-full bg-brand-green hover:bg-green-600 text-white py-3.5 rounded-xl font-bold text-lg shadow-lg shadow-brand-green/30 transition disabled:opacity-70 disabled:cursor-not-allowed mt-4 flex justify-center items-center gap-2"
           >
-            {loading ? 'Registering...' : 'Register'}
+            {(loading || success) ? (
+              <><span className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></span> Registering...</>
+            ) : (
+              <>Register <ArrowRight size={20} /></>
+            )}
           </button>
         </form>
 
-        <p style={{ marginTop: '25px', marginBottom: 0, textAlign: 'center', fontSize: '13px', color: '#666' }}>
+        <p className="mt-8 text-center text-sm font-medium text-slate-500 dark:text-slate-400">
           Already have an account?{' '}
-          <Link to="/login" style={{ color: '#007bff', textDecoration: 'none', fontWeight: 'bold' }}>
+          <Link to="/login" className="text-brand-green font-bold hover:underline transition">
             Login here
           </Link>
         </p>

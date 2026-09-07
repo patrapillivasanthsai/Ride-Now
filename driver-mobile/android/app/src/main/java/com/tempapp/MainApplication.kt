@@ -41,5 +41,28 @@ class MainApplication : Application(), ReactApplication {
       load()
     }
     ReactNativeFlipper.initializeFlipper(this, reactNativeHost.reactInstanceManager)
+    createNotificationChannel()
+  }
+
+  private fun createNotificationChannel() {
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+      val channelId = "ridenow_ride_alerts"
+      val channelName = "RideNow Ride Alerts"
+      val importance = android.app.NotificationManager.IMPORTANCE_HIGH
+      val soundUri = android.net.Uri.parse("android.resource://" + packageName + "/" + R.raw.hmm_sound)
+      val audioAttributes = android.media.AudioAttributes.Builder()
+          .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+          .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+          .build()
+
+      val channel = android.app.NotificationChannel(channelId, channelName, importance).apply {
+        description = "Incoming Ride Request Alerts"
+        setSound(soundUri, audioAttributes)
+        enableVibration(true)
+      }
+
+      val notificationManager = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+      notificationManager.createNotificationChannel(channel)
+    }
   }
 }

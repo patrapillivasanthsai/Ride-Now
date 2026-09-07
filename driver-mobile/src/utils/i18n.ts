@@ -1,4 +1,4 @@
-﻿export type Language = 'en' | 'hi' | 'te';
+export type Language = 'en' | 'hi' | 'te';
 
 export interface TranslationDict {
   [key: string]: string;
@@ -90,7 +90,7 @@ export const translations: Record<Language, TranslationDict> = {
     accountNumber: 'Account Number',
     confirmAccountNumber: 'Confirm Account Number',
     ifscCode: 'IFSC Code',
-    verifyAndContinue: 'Verify & Continue',
+    verifyAndContinue: 'Complete Registration',
     secureNotice: '🔒 Your payout information is securely protected.',
 
     // Pending Review
@@ -208,7 +208,7 @@ export const translations: Record<Language, TranslationDict> = {
     accountNumber: 'खाता संख्या',
     confirmAccountNumber: 'खाता संख्या की पुष्टि करें',
     ifscCode: 'IFSC कोड',
-    verifyAndContinue: 'सत्यापित करें और जारी रखें',
+    verifyAndContinue: 'पंजीकरण पूरा करें',
     secureNotice: '🔒 आपकी भुगतान जानकारी सुरक्षित रूप से एन्क्रिप्टेड है।',
 
     // Pending Review
@@ -326,7 +326,7 @@ export const translations: Record<Language, TranslationDict> = {
     accountNumber: 'ఖాతా సంఖ్య',
     confirmAccountNumber: 'ఖాతా సంఖ్యను నిర్ధారించండి',
     ifscCode: 'IFSC కోడ్',
-    verifyAndContinue: 'ధృవీకరించి కొనసాగించండి',
+    verifyAndContinue: 'రిజిస్ట్రేషన్ పూర్తి చేయండి',
     secureNotice: '🔒 మీ చెల్లింపు సమాచారం సురక్షితంగా రక్షించబడింది.',
 
     // Pending Review

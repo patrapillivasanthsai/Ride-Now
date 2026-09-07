@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "717186537484",
+    "project_id": "ridenow-app-ff92a",
+    "storage_bucket": "ridenow-app-ff92a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:717186537484:android:782c81b10524c537a7b629",
+        "android_client_info": {
+          "package_name": "com.tempapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBWJucqzX726dX6Su3bBNzHJ__Eef2CRdQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

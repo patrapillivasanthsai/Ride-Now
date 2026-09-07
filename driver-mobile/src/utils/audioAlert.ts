@@ -1,9 +1,26 @@
-﻿/**
+/**
  * In-app Ringtone & Chime Sound Synthesizer
  * Plays high-fidelity audio chimes for incoming ride requests and notifications.
  */
 
 export function playIncomingRideRingtone() {
+  try {
+    // 1. Try HTML5 Audio element for custom hmm_sound.mp3 playback
+    if (typeof (globalThis as any).Audio !== 'undefined') {
+      const customAudio = new (globalThis as any).Audio('/assets/hmm_sound.mp3');
+      customAudio.play().catch(() => {
+        playSynthChime();
+      });
+      return;
+    }
+  } catch {
+    // Fallback
+  }
+
+  playSynthChime();
+}
+
+function playSynthChime() {
   try {
     const AudioCtx = (globalThis as any).AudioContext || (globalThis as any).webkitAudioContext;
     if (!AudioCtx) return;
@@ -11,14 +28,13 @@ export function playIncomingRideRingtone() {
     const ctx = new AudioCtx();
     const now = ctx.currentTime;
 
-    // Polyphonic incoming ride alert chime (Tri-tone bell sequence repeating twice)
     const notes = [
-      { freq: 587.33, start: 0.0, dur: 0.15 },  // D5
-      { freq: 739.99, start: 0.18, dur: 0.15 }, // F#5
-      { freq: 880.00, start: 0.36, dur: 0.30 }, // A5
-      { freq: 587.33, start: 0.8, dur: 0.15 },  // D5
-      { freq: 739.99, start: 0.98, dur: 0.15 }, // F#5
-      { freq: 880.00, start: 1.16, dur: 0.40 }, // A5
+      { freq: 587.33, start: 0.0, dur: 0.15 },
+      { freq: 739.99, start: 0.18, dur: 0.15 },
+      { freq: 880.00, start: 0.36, dur: 0.30 },
+      { freq: 587.33, start: 0.8, dur: 0.15 },
+      { freq: 739.99, start: 0.98, dur: 0.15 },
+      { freq: 880.00, start: 1.16, dur: 0.40 },
     ];
 
     notes.forEach(({ freq, start, dur }) => {

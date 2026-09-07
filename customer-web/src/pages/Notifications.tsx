@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../services/api';
+import { Bell, Check, Gift, ShieldAlert, Car, Settings, CheckCircle } from 'lucide-react';
 
 export function Notifications() {
   const [data, setData] = useState<any>(null);
@@ -30,54 +31,111 @@ export function Notifications() {
     } catch { /* silent */ }
   };
 
-  const typeIcon = (type: string) => ({ SYSTEM: '⚙️', OFFER: '🎁', BROADCAST: '📢', SAFETY: '🚨', RIDE_UPDATE: '🚖', APPROVAL: '✅' }[type] || '🔔');
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'SYSTEM': return <Settings className="w-6 h-6 text-slate-500" />;
+      case 'OFFER': return <Gift className="w-6 h-6 text-purple-500" />;
+      case 'BROADCAST': return <Bell className="w-6 h-6 text-blue-500" />;
+      case 'SAFETY': return <ShieldAlert className="w-6 h-6 text-red-500" />;
+      case 'RIDE_UPDATE': return <Car className="w-6 h-6 text-brand-green" />;
+      case 'APPROVAL': return <CheckCircle className="w-6 h-6 text-green-500" />;
+      default: return <Bell className="w-6 h-6 text-slate-400" />;
+    }
+  };
 
   return (
-    <div style={{ maxWidth: '680px', margin: '0 auto', padding: '32px 20px', fontFamily: 'sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: '800', color: '#111' }}>🔔 Notifications</h1>
-          {data?.unreadCount > 0 && (
-            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>{data.unreadCount} unread</p>
-          )}
+    <div className="max-w-2xl mx-auto px-4 py-8 md:py-12 min-h-[80vh]">
+      <div className="flex justify-between items-center mb-8">
+        <div className="flex items-center gap-3">
+          <div className="bg-brand-green/10 p-2.5 rounded-xl text-brand-green">
+            <Bell className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Notifications</h1>
+            {data?.unreadCount > 0 && (
+              <p className="text-sm font-semibold text-brand-green mt-0.5">{data.unreadCount} unread message{data.unreadCount > 1 ? 's' : ''}</p>
+            )}
+          </div>
         </div>
+        
         {data?.unreadCount > 0 && (
-          <button onClick={handleMarkAllRead} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#fff', color: '#475569', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
-            Mark all read
+          <button 
+            onClick={handleMarkAllRead} 
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition shadow-sm"
+          >
+            <Check className="w-4 h-4" /> Mark all read
           </button>
         )}
       </div>
 
-      {error && <div style={{ backgroundColor: '#fff5f5', color: '#e53e3e', borderLeft: '4px solid #ef4444', padding: '14px 18px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px' }}>⚠️ {error}</div>}
-      {loading && <div style={{ textAlign: 'center', padding: '48px', color: '#94a3b8' }}>Loading notifications...</div>}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 p-4 rounded-xl mb-6 text-sm font-semibold border border-red-100 dark:border-red-900/50 flex items-start gap-3">
+          <ShieldAlert className="w-5 h-5 shrink-0" /> {error}
+        </div>
+      )}
+
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-brand-green border-t-transparent"></div>
+          <p className="mt-4 text-slate-500 dark:text-slate-400 font-semibold">Loading your notifications...</p>
+        </div>
+      )}
 
       {!loading && (!data?.notifications || data.notifications.length === 0) && (
-        <div style={{ textAlign: 'center', padding: '64px', color: '#94a3b8', backgroundColor: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-          <div style={{ fontSize: '40px', marginBottom: '12px' }}>🔔</div>
-          <div style={{ fontSize: '16px', fontWeight: '600', marginBottom: '6px' }}>All clear!</div>
-          <div style={{ fontSize: '14px' }}>No notifications yet.</div>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl shadow-slate-200/40 dark:shadow-none border border-slate-100 dark:border-slate-800 p-12 text-center flex flex-col items-center">
+          <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
+            <Bell className="w-10 h-10 text-slate-300 dark:text-slate-600" />
+          </div>
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">All clear!</h3>
+          <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-sm">You have no new notifications right now. We'll let you know when updates arrive.</p>
         </div>
       )}
 
       {!loading && data?.notifications?.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div className="flex flex-col gap-4">
           {data.notifications.map((n: any) => (
-            <div key={n.id} onClick={() => !n.isRead && handleMarkRead(n.id)}
-              style={{ backgroundColor: n.isRead ? '#fff' : '#f0fdf4', borderRadius: '12px', border: `1px solid ${n.isRead ? '#e2e8f0' : '#bbf7d0'}`, padding: '16px 20px', cursor: n.isRead ? 'default' : 'pointer', transition: 'all 0.2s' }}>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                <span style={{ fontSize: '22px', flexShrink: 0 }}>{typeIcon(n.type)}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                    <div style={{ fontWeight: n.isRead ? '600' : '800', fontSize: '14px', color: '#0f172a' }}>{n.title}</div>
-                    {!n.isRead && <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#00b562', flexShrink: 0, marginTop: '4px' }} />}
+            <div 
+              key={n.id} 
+              onClick={() => !n.isRead && handleMarkRead(n.id)}
+              className={`relative overflow-hidden rounded-2xl border transition-all duration-200 ${
+                n.isRead 
+                  ? 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 shadow-sm' 
+                  : 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800 shadow-md cursor-pointer hover:shadow-lg hover:border-green-300'
+              } p-5 md:p-6`}
+            >
+              {!n.isRead && <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-green"></div>}
+              
+              <div className="flex gap-4 items-start">
+                <div className={`p-3 rounded-xl shrink-0 ${n.isRead ? 'bg-slate-50 dark:bg-slate-800' : 'bg-white dark:bg-slate-800 shadow-sm'}`}>
+                  {getTypeIcon(n.type)}
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start gap-4 mb-1">
+                    <h4 className={`text-base font-bold truncate ${n.isRead ? 'text-slate-700 dark:text-slate-200' : 'text-slate-900 dark:text-white'}`}>
+                      {n.title}
+                    </h4>
+                    <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                      {new Date(n.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </span>
                   </div>
-                  <div style={{ fontSize: '13px', color: '#64748b', marginTop: '3px', lineHeight: 1.5 }}>{n.body}</div>
+                  
+                  <p className={`text-sm leading-relaxed ${n.isRead ? 'text-slate-500 dark:text-slate-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                    {n.body}
+                  </p>
+                  
                   {n.offer && (
-                    <div style={{ marginTop: '8px', backgroundColor: '#fff', borderRadius: '8px', padding: '8px 12px', border: '1px solid #e2e8f0', fontSize: '12px', color: '#00b562', fontWeight: '700' }}>
-                      🎁 {n.offer.title} {n.offer.couponCode && `· Code: ${n.offer.couponCode}`} {n.offer.discountValue && `· ₹${n.offer.discountValue} off`}
+                    <div className="mt-4 bg-white dark:bg-slate-800 rounded-xl p-3 border border-purple-100 dark:border-purple-900/50 shadow-sm flex items-center gap-3">
+                      <div className="bg-purple-50 dark:bg-purple-950/40 p-2 rounded-lg"><Gift className="w-4 h-4 text-purple-600 dark:text-purple-400" /></div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">{n.offer.title}</p>
+                        <p className="text-xs font-semibold text-purple-600 dark:text-purple-400 mt-0.5">
+                          {n.offer.couponCode && `Code: ${n.offer.couponCode} `}
+                          {n.offer.discountValue && `· Save ₹${n.offer.discountValue}`}
+                        </p>
+                      </div>
                     </div>
                   )}
-                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>{new Date(n.createdAt).toLocaleString()}</div>
                 </div>
               </div>
             </div>

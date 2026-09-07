@@ -67,6 +67,35 @@ services:
     networks:
       - ridenow-network
 
+  prisma-studio:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ridenow-prisma-studio
+    command: npx prisma studio --port 5555 --hostname 0.0.0.0 --browser none
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-2002}@db:5432/${POSTGRES_DB:-ridenow}?schema=public"
+    ports:
+      - "5555:5555"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - ridenow-network
+
+  database-gui:
+    image: adminer:latest
+    container_name: ridenow-db-gui
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - ridenow-network
+
 volumes:
   postgres_data:
 

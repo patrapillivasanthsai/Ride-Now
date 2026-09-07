@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
+import { Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 
 export function Login() {
   const [email, setEmail] = useState('');
@@ -36,96 +37,68 @@ export function Login() {
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '70vh' }}>
-      <div style={{
-        backgroundColor: '#fff',
-        padding: '30px',
-        borderRadius: '8px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-        width: '100%',
-        maxWidth: '400px',
-        boxSizing: 'border-box'
-      }}>
-        <h2 style={{ margin: '0 0 10px 0', color: '#00b562', textAlign: 'center' }}>Welcome Back</h2>
-        <p style={{ margin: '0 0 25px 0', color: '#666', textAlign: 'center', fontSize: '14px' }}>
-          Login to book rides and track your journey
-        </p>
+    <div className="flex justify-center items-center min-h-[80vh] px-4">
+      <div className="bg-white dark:bg-slate-900 p-8 md:p-10 rounded-2xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 w-full max-w-md">
+        
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-2">Welcome Back</h2>
+          <p className="text-slate-500 dark:text-slate-400 font-medium">Login to book rides and track your journey</p>
+        </div>
 
         {error && (
-          <div style={{
-            backgroundColor: '#f8d7da',
-            color: '#721c24',
-            border: '1px solid #f5c6cb',
-            padding: '10px',
-            borderRadius: '4px',
-            marginBottom: '20px',
-            fontSize: '14px'
-          }}>
-            {error}
+          <div className="bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 p-4 rounded-xl mb-6 text-sm font-semibold flex items-start gap-3 border border-red-100 dark:border-red-900/50">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <div>{error}</div>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', fontSize: '13px' }}>Email Address</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="customer@example.com"
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                boxSizing: 'border-box',
-                fontSize: '14px'
-              }}
-              required
-            />
+            <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">Email Address</label>
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="customer@example.com"
+                className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-brand-green transition text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500"
+                required
+              />
+            </div>
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', fontSize: '13px' }}>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                boxSizing: 'border-box',
-                fontSize: '14px'
-              }}
-              required
-            />
+            <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">Password</label>
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-brand-green transition text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500"
+                required
+              />
+            </div>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            style={{
-              backgroundColor: loading ? '#33cb82' : '#00b562',
-              color: '#fff',
-              border: 'none',
-              padding: '12px',
-              borderRadius: '4px',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              fontWeight: 'bold',
-              fontSize: '15px',
-              marginTop: '10px'
-            }}
+            className="w-full bg-brand-green hover:bg-green-600 text-white py-3.5 rounded-xl font-bold text-lg shadow-lg shadow-brand-green/30 transition disabled:opacity-70 disabled:cursor-not-allowed mt-2 flex justify-center items-center gap-2"
           >
-            {loading ? 'Logging in...' : 'Login'}
+            {loading ? (
+              <><span className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></span> Logging in...</>
+            ) : (
+              <>Login <ArrowRight size={20} /></>
+            )}
           </button>
         </form>
 
-        <p style={{ marginTop: '25px', marginBottom: 0, textAlign: 'center', fontSize: '13px', color: '#666' }}>
+        <p className="mt-8 text-center text-sm font-medium text-slate-500 dark:text-slate-400">
           Don't have an account?{' '}
-          <Link to="/register" style={{ color: '#007bff', textDecoration: 'none', fontWeight: 'bold' }}>
+          <Link to="/register" className="text-brand-green font-bold hover:underline transition">
             Register here
           </Link>
         </p>
