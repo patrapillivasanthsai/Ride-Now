@@ -572,6 +572,12 @@ export const Rides: React.FC = () => {
                       </span>
                     );
                   })()}
+                  {selectedRide.status === 'CANCELLED' && (
+                    <div style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '10px', padding: '10px', marginTop: '10px', fontSize: '12px', color: '#ef4444', fontWeight: '700' }}>
+                      <div>🚫 Cancelled By: {selectedRide.cancelledBy || 'CUSTOMER'}</div>
+                      <div style={{ fontSize: '11px', color: theme.textMuted, marginTop: '2px', fontWeight: '500' }}>Reason: {selectedRide.cancelReason || 'Cancelled by Customer'}</div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Locations */}

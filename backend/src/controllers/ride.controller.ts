@@ -409,12 +409,22 @@ export async function cancelRide(req: AuthenticatedRequest, res: Response) {
           status: currentStatus // Concurrency check: must match what we read
         },
         data: {
-          status: RideStatus.CANCELLED
+          status: RideStatus.CANCELLED,
+          cancelledBy: req.body?.cancelledBy || 'CUSTOMER',
+          cancelReason: req.body?.reason || 'Cancelled by Customer'
         }
       });
 
       if (updateResult.count === 0) {
         throw new Error('CONCURRENT_MODIFICATION_DETECTED');
+      }
+
+      // If a driver was assigned, reset driver status back to ONLINE
+      if (ride.driverId) {
+        await tx.driver.update({
+          where: { id: ride.driverId },
+          data: { status: 'ONLINE' }
+        }).catch(() => {});
       }
 
       await tx.rideStatusHistory.create({
