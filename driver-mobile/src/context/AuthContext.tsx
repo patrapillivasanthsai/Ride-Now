@@ -65,15 +65,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setToken(storedToken);
           const userData = await api.getMe();
           if (userData.role === 'DRIVER' && !userData.driver) {
-            throw new Error('Driver profile not found');
+            throw { status: 403, message: 'Driver profile not found' };
           }
           setUser(userData);
         }
-      } catch (error) {
-        console.error('Session load failed, clearing credentials:', error);
-        await AsyncStorage.removeItem('token');
-        setToken(null);
-        setUser(null);
+      } catch (error: any) {
+        const isAuthError = error?.status === 401 || error?.status === 403 || error?.message === 'Driver profile not found';
+        if (isAuthError) {
+          console.warn('Session authentication failed, clearing credentials:', error?.message || error);
+          await AsyncStorage.removeItem('token');
+          setToken(null);
+          setUser(null);
+        } else {
+          console.warn('Session load warning (network/server error):', error?.message || error);
+        }
       } finally {
         setLoading(false);
       }
@@ -99,9 +104,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const userData = await api.getMe();
       setUser(userData);
-    } catch (error) {
-      console.error('Refresh user session failed:', error);
-      await handleLogout();
+    } catch (error: any) {
+      if (error?.status === 401 || error?.status === 403) {
+        console.warn('Refresh user session failed (unauthorized):', error);
+        await handleLogout();
+      } else {
+        console.warn('Refresh user session warning (network/server error):', error);
+      }
     }
   };
 

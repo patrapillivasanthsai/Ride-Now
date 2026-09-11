@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { 
   ArrowLeft, MapPin, CreditCard, 
-  Car, User, Star, AlertCircle, Info, Activity
+  Car, User, Star, AlertCircle, Info, Activity, ShieldCheck
 } from 'lucide-react';
 
 export function RideDetail() {
@@ -18,6 +18,11 @@ export function RideDetail() {
   const [ratingComment, setRatingComment] = useState('');
   const [ratingError, setRatingError] = useState('');
   const [submittingRating, setSubmittingRating] = useState(false);
+
+  // Cancellation States
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const handleRatingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,19 +53,62 @@ export function RideDetail() {
     }
   };
 
+  const handleCancelRide = async () => {
+    if (!id) return;
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      const token = localStorage.getItem('token');
+      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const res = await fetch(`${apiBase}/api/customer/rides/${id}/cancel`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ reason: 'Cancelled by Customer', cancelledBy: 'CUSTOMER' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowCancelModal(false);
+        navigate('/');
+      } else {
+        setCancelError(data.error?.message || 'Unable to cancel the ride. Please try again.');
+        setShowCancelModal(false);
+      }
+    } catch (err: any) {
+      setCancelError(err.message || 'Unable to cancel the ride. Please try again.');
+      setShowCancelModal(false);
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   useEffect(() => {
-    async function fetchRideDetail() {
+    let intervalId: any = null;
+
+    async function fetchRideDetail(isSilent = false) {
       if (!id) return;
       try {
         const data = await api.getRideDetail(id);
         setRide(data);
       } catch (err: any) {
-        setError(err.message || 'Failed to load ride details.');
+        if (!isSilent) setError(err.message || 'Failed to load ride details.');
       } finally {
-        setLoading(false);
+        if (!isSilent) setLoading(false);
       }
     }
-    fetchRideDetail();
+
+    fetchRideDetail(false);
+
+    // Poll every 3 seconds for real-time ride updates
+    intervalId = setInterval(() => {
+      fetchRideDetail(true);
+    }, 3000);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [id]);
 
   const getStatusBadge = (status: string) => {
@@ -111,6 +159,13 @@ export function RideDetail() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 md:py-12">
+      {cancelError && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-6 text-sm font-semibold flex items-center justify-between border border-red-100 shadow-sm">
+          <span>⚠️ {cancelError}</span>
+          <button onClick={() => setCancelError(null)} className="text-red-500 hover:text-red-700 text-xs font-bold">Dismiss</button>
+        </div>
+      )}
+
       <button
         onClick={() => navigate('/rides')}
         className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-semibold mb-8 transition"
@@ -123,13 +178,51 @@ export function RideDetail() {
         {/* Main Info Column */}
         <div className="md:col-span-2 flex flex-col gap-6">
           
+          {/* Start OTP Card */}
+          {ride.otp && ['REQUESTED', 'SEARCHING_DRIVER', 'DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'DRIVER_ARRIVED', 'RIDE_STARTED'].includes(ride.status) && (
+            <div className="bg-gradient-to-br from-emerald-500 to-green-600 text-white rounded-2xl shadow-xl p-6 relative overflow-hidden border border-emerald-400">
+              <div className="absolute -right-4 -bottom-4 text-emerald-400/20 text-8xl font-extrabold select-none pointer-events-none">
+                OTP
+              </div>
+              <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-6">
+                <div>
+                  <div className="flex items-center gap-2 text-emerald-100 font-extrabold text-xs uppercase tracking-widest mb-1">
+                    <ShieldCheck className="w-4 h-4" /> Start OTP Code
+                  </div>
+                  <h4 className="text-xl font-bold text-white mb-1">Ride Start OTP</h4>
+                  <p className="text-emerald-100 text-xs max-w-xs leading-relaxed">
+                    Share this 4-digit OTP with your driver captain when starting the ride.
+                  </p>
+                </div>
+                <div className="bg-white/10 backdrop-blur-md px-6 py-3.5 rounded-2xl border border-white/20 text-center shrink-0 min-w-[140px]">
+                  <span className="block text-[10px] font-extrabold text-emerald-200 uppercase tracking-widest mb-0.5">
+                    Start OTP
+                  </span>
+                  <span className="text-4xl font-extrabold tracking-widest text-white font-mono">
+                    {ride.otp}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {/* Trip Summary Card */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 overflow-hidden">
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-wrap justify-between items-center gap-4 bg-slate-50 dark:bg-slate-800/50">
               <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <MapPin className="text-brand-green w-5 h-5" /> Trip Summary
               </h3>
-              {getStatusBadge(ride.status)}
+              <div className="flex items-center gap-3">
+                {getStatusBadge(ride.status)}
+                {['REQUESTED', 'SEARCHING_DRIVER', 'DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'DRIVER_ARRIVED'].includes(ride.status) && (
+                  <button
+                    onClick={() => { setCancelError(null); setShowCancelModal(true); }}
+                    className="bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/30 dark:hover:bg-red-900/40 dark:text-red-400 px-4 py-1.5 rounded-full font-bold text-xs border border-red-200 dark:border-red-900/50 transition flex items-center gap-1.5 shadow-sm"
+                  >
+                    Cancel Ride
+                  </button>
+                )}
+              </div>
             </div>
             <div className="p-6">
               <div className="grid grid-cols-2 gap-y-6 gap-x-4 mb-6">
@@ -356,6 +449,45 @@ export function RideDetail() {
 
         </div>
       </div>
+
+      {/* Cancellation Confirmation Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 text-center">
+            <div className="w-14 h-14 bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
+              ⚠️
+            </div>
+            <h3 className="text-xl font-extrabold text-slate-900 dark:text-white mb-2">
+              Cancel Ride?
+            </h3>
+            <p className="text-slate-600 dark:text-slate-300 text-sm mb-6 leading-relaxed">
+              Are you sure you want to cancel this ride?
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                disabled={cancelling}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-3 rounded-xl font-bold text-sm transition"
+              >
+                Keep Ride
+              </button>
+              <button
+                onClick={handleCancelRide}
+                disabled={cancelling}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold text-sm transition shadow-lg shadow-red-600/20 flex items-center justify-center gap-2"
+              >
+                {cancelling ? (
+                  <>
+                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" /> Cancelling...
+                  </>
+                ) : (
+                  'Cancel Ride'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

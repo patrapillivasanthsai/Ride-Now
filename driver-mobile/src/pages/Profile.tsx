@@ -208,7 +208,7 @@ export function Profile({ onNavigate }: ProfileProps) {
 
           {/* Logout Button */}
           <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-            <Text style={styles.logoutText}>Logout</Text>
+            <Text style={styles.logoutText}> Logout</Text>
           </TouchableOpacity>
         </ScrollView>
       )}
@@ -376,9 +376,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   logoutText: {
-    color: '#94a3b8',
+    color: '#ef4444',
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   modalOverlay: {
     flex: 1,

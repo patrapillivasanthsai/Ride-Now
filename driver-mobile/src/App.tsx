@@ -27,6 +27,8 @@ import { PersonalInfo } from './pages/PersonalInfo';
 import { VehicleDetails } from './pages/VehicleDetails';
 import { PayoutDetails } from './pages/PayoutDetails';
 
+import { BottomNav, TabScreen } from './components/BottomNav';
+
 type Screen =
   | 'DASHBOARD'
   | 'PROFILE'
@@ -104,6 +106,9 @@ function MainAppShell() {
     return <PendingApproval onNavigate={handleNavigate} />;
   }
 
+  const isMainTabScreen = ['DASHBOARD', 'EARNINGS', 'WALLET', 'REFERRALS', 'PROFILE'].includes(currentScreen);
+  const currentTab: TabScreen = (isMainTabScreen ? currentScreen : 'DASHBOARD') as TabScreen;
+
   // Router layout
   const renderScreen = () => {
     switch (currentScreen) {
@@ -140,7 +145,15 @@ function MainAppShell() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.bg} />
-      {renderScreen()}
+      <View style={{ flex: 1 }}>
+        {renderScreen()}
+      </View>
+      {isMainTabScreen && (
+        <BottomNav
+          currentTab={currentTab}
+          onSelectTab={(tab) => handleNavigate(tab)}
+        />
+      )}
     </SafeAreaView>
   );
 }
