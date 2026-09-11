@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient, RideStatus, VehicleType, UserRole, PaymentStatus, PaymentMethod } from '@prisma/client';
+import { PrismaClient, RideStatus, VehicleType, UserRole, PaymentStatus, PaymentMethod, WalletTransactionType, WalletTransactionStatus } from '@prisma/client';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { emitToRide, emitToRole, emitToUser } from '../socket';
 import { sendPushNotification } from '../utils/firebase';
@@ -593,10 +593,40 @@ export async function updateRideStatus(req: AuthenticatedRequest, res: Response)
       });
 
       if (status === RideStatus.RIDE_COMPLETED) {
-        await tx.driver.update({
-          where: { id: driver.id },
-          data: { status: 'ONLINE' }
+        const commissionRate = 0.80; // 80% driver share
+        const driverShare = parseFloat(((ride.fare || 0) * commissionRate).toFixed(2));
+
+        const existingTx = await tx.driverWalletTransaction.findFirst({
+          where: { referenceId: id }
         });
+
+        if (!existingTx && driverShare > 0) {
+          const dropLocation = ride.dropoffAddress || ride.pickupAddress || 'Ride';
+          await tx.driverWalletTransaction.create({
+            data: {
+              driverId: driver.id,
+              amount: driverShare,
+              type: WalletTransactionType.TRIP_EARNING,
+              status: WalletTransactionStatus.COMPLETED,
+              description: `Trip Earnings - ${dropLocation}`,
+              referenceId: id
+            }
+          });
+
+          await tx.driver.update({
+            where: { id: driver.id },
+            data: {
+              status: 'ONLINE',
+              walletBalance: { increment: driverShare },
+              totalEarnings: { increment: driverShare }
+            }
+          });
+        } else {
+          await tx.driver.update({
+            where: { id: driver.id },
+            data: { status: 'ONLINE' }
+          });
+        }
       }
 
       return tx.ride.findUnique({ where: { id } });

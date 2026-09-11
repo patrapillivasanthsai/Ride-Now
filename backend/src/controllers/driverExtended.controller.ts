@@ -378,23 +378,14 @@ export async function getDriverWallet(req: AuthenticatedRequest, res: Response) 
     return res.status(404).json({ success: false, error: { code: 'DRIVER_NOT_FOUND', message: 'Driver not found' } });
   }
 
-  // Compute balance dynamically if transactions exist
-  const baseBalance = driver.walletBalance > 0 ? driver.walletBalance : 4860.00;
+  const availableBalance = parseFloat((driver.walletBalance || 0).toFixed(2));
 
   return res.status(200).json({
     success: true,
     data: {
-      availableBalance: baseBalance,
-      linkedAccount: driver.payoutAccounts[0] || {
-        bankName: 'HDFC Bank',
-        accountNumberMasked: '•••• 4821',
-        isVerified: true
-      },
-      transactions: driver.walletTransactions.length > 0 ? driver.walletTransactions : [
-        { id: '1', amount: 186.00, type: 'TRIP_EARNING', description: 'Trip Earnings - MG Road', createdAt: new Date() },
-        { id: '2', amount: 500.00, type: 'BONUS_INCENTIVE', description: 'Weekly Peak Incentive', createdAt: new Date(Date.now() - 86400000) },
-        { id: '3', amount: -2000.00, type: 'WITHDRAWAL', description: 'Bank Withdrawal to HDFC', createdAt: new Date(Date.now() - 172800000) }
-      ]
+      availableBalance,
+      linkedAccount: driver.payoutAccounts[0] || null,
+      transactions: driver.walletTransactions
     }
   });
 }
@@ -414,7 +405,7 @@ export async function requestWalletWithdrawal(req: AuthenticatedRequest, res: Re
     return res.status(404).json({ success: false, error: { code: 'DRIVER_NOT_FOUND', message: 'Driver not found' } });
   }
 
-  const currentBalance = driver.walletBalance > 0 ? driver.walletBalance : 4860.00;
+  const currentBalance = driver.walletBalance || 0;
   if (withdrawAmount > currentBalance) {
     return res.status(400).json({ success: false, error: { code: 'INSUFFICIENT_FUNDS', message: 'Withdrawal amount exceeds available wallet balance.' } });
   }
@@ -428,7 +419,7 @@ export async function requestWalletWithdrawal(req: AuthenticatedRequest, res: Re
     }
   });
 
-  const updatedBalance = currentBalance - withdrawAmount;
+  const updatedBalance = parseFloat((currentBalance - withdrawAmount).toFixed(2));
   await prisma.driver.update({
     where: { id: driver.id },
     data: { walletBalance: updatedBalance }

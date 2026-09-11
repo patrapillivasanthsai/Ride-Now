@@ -630,17 +630,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           </View>
         </View>
       </Modal>
-
-      {/* Bottom Navigation */}
-      <BottomNav
-        currentTab="DASHBOARD"
-        onSelectTab={(tab) => {
-          if (tab === 'EARNINGS') onNavigate('EARNINGS');
-          else if (tab === 'WALLET') onNavigate('WALLET');
-          else if (tab === 'REFERRALS') onNavigate('REFERRALS');
-          else if (tab === 'PROFILE') onNavigate('PROFILE');
-        }}
-      />
     </View>
   );
 }
